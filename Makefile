@@ -152,16 +152,16 @@ schema: ## (changes state) Phase 11, ansible: tables, index, then rotate the dat
 models: ## (changes state) Phase 12, ansible: pull the embedding and chat models, check digests
 	$(call run,ansible.sh models)
 
-deliver: ## (changes state) Phase 13, ansible: secret zero, one wrapped secret_id per workload (D9)
+deliver: ## (changes state) Secret zero for every workload by hand (pipeline-up and app-up deliver their own, D9)
 	$(call run,ansible.sh deliver)
 
-pipeline-up: ## (changes state) Phase 14, make: scribe, keeper, librarian (delivers first)
+pipeline-up: ## (changes state) Phase 13, make: scribe, keeper, librarian (delivers their secret zero first)
 	$(call run,pipeline-up.sh)
 
-app-up: ## (changes state) Phase 15, make: the console (api and web; builds if missing)
+app-up: ## (changes state) Phase 14, make: the console and web (delivers the console's secret zero; builds if missing)
 	$(call run,app-up.sh)
 
-validate: ## Phase 16, ansible: every workload's powers, every person's reach, the line for the console
+validate: ## Phase 15, ansible: every workload's powers, every person's reach, the line for the console
 	$(call run,ansible.sh validate)
 
 # ── Gates ─────────────────────────────────────────────────────────────────────
@@ -189,7 +189,7 @@ tf-plan-all: ## Plan every Terraform root; fails if any has pending changes
 		esac; rm -f $$out; \
 	done
 
-layers: ## Write .build/layers.json: every phase with its tool and evidence, and the gates
+layers: ## Write .build/console/layers.json: every phase with its tool and evidence, and the gates
 	$(call run,layers.sh)
 
 # ── Vault ─────────────────────────────────────────────────────────────────────

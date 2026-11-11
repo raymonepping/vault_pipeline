@@ -16,6 +16,10 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD_FILE: /run/secrets/pg-bootstrap
       POSTGRES_INITDB_ARGS: "--auth-local=scram-sha-256 --auth-host=scram-sha-256"
+    # The entrypoint starts as root, fixes ownership, then drops to postgres.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - pg-data:/var/lib/postgresql
       - ../../.secrets/data/pg-bootstrap:/run/secrets/pg-bootstrap:ro
@@ -38,6 +42,8 @@ services:
     environment:
       OLLAMA_KEEP_ALIVE: 30m
       OLLAMA_NUM_PARALLEL: "1"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     volumes:
       - ollama-models:/root/.ollama
     networks:

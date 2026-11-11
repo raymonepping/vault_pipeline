@@ -143,13 +143,6 @@ vpip_container_state() {
   podman container inspect "$1" --format '{{.State.Status}}' 2>/dev/null || echo "not created"
 }
 
-# `vault list` on an empty path prints [] *and* exits 2: always one JSON array.
-vault_list_json() {
-  local o
-  o=$(vault list -format=json "$1" 2>/dev/null) || true
-  jq -c 'if type == "array" then . else [] end' <<<"${o:-[]}" 2>/dev/null || echo '[]'
-}
-
 info() { printf '\033[32m%s\033[0m\n' "$*" >&2; }
 die() {
   printf '\033[31m%s\033[0m\n' "$*" >&2

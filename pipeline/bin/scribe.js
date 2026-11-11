@@ -63,18 +63,6 @@ serve({
       },
     },
     {
-      // Re-seal one document with a fresh data key; the keeper replaces its frames.
-      method: 'POST', path: '/reseal', op: 'reseal',
-      async handler(req, res) {
-        const { doc_id: docId } = await readJson(req);
-        const c = w.cfg.collections.find((x) => x.documents.includes(docId));
-        if (!c) throw new HttpError(400, 'unknown_document', `no document ${docId}`);
-        const events = [];
-        await sealAndStore(c, [docId], (e) => events.push(e));
-        json(res, 200, events[0]);
-      },
-    },
-    {
       method: 'GET', path: '/powers', op: 'powers',
       handler: async (q, res) => json(res, 200, { workload: 'scribe', powers: await w.powers(['spiffe/role/scribe/mintjwt', 'spiffe/role/keeper/mintjwt', 'transit/datakeys/plaintext/board', 'transit/decrypt/board', 'transit/rewrap/board', 'database/creds/keeper']) }),
     },

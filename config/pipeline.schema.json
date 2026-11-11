@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/pipeline.json (scripts/pipeline-check.js holds the rules a schema cannot say)",
   "type": "object",
-  "required": ["title", "trust_domain", "subnet", "workloads", "collections", "groups", "operator_group", "people", "questions"],
+  "required": ["title", "trust_domain", "subnet", "workloads", "collections", "groups", "operator_group", "people"],
   "properties": {
     "title": { "type": "string" },
     "trust_domain": { "type": "string" },
@@ -11,14 +11,12 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["name", "spiffe_path", "address", "port", "vault_may", "vault_refuses", "creates_data_keys", "decrypts", "accepts"],
+        "required": ["name", "spiffe_path", "address", "port", "creates_data_keys", "decrypts", "accepts"],
         "properties": {
           "name": { "type": "string" },
           "spiffe_path": { "type": "string" },
           "address": { "type": "string" },
           "port": { "type": "integer" },
-          "vault_may": { "type": "array", "items": { "type": "string" } },
-          "vault_refuses": { "type": "array", "items": { "type": "string" } },
           "creates_data_keys": { "type": "boolean" },
           "decrypts": { "type": "boolean" },
           "accepts": {
@@ -50,10 +48,6 @@
         "required": ["user", "name", "groups"],
         "properties": { "user": { "type": "string" }, "name": { "type": "string" }, "groups": { "type": "array", "items": { "type": "string" } } }
       }
-    },
-    "questions": {
-      "type": "array",
-      "items": { "type": "object", "required": ["collection", "text"], "properties": { "collection": { "type": "string" }, "text": { "type": "string" } } }
     }
   }
 }

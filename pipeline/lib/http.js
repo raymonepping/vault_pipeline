@@ -7,6 +7,11 @@ import { createServer } from 'node:https';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { SvidRefusal } from './svid.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// The request id of the call being served: workload.js call() carries it on
+// to the next workload, so one question can be followed through every log.
+export const requestContext = new AsyncLocalStorage();
 
 export class HttpError extends Error {
   constructor(status, code, message, extra = {}) {
@@ -84,8 +89,14 @@ export function serve({ name, cfg, verifier, routes, tls, port, logger = log(nam
     return { caller, claims };
   }
 
-  const handler = async (req, res) => {
-    const id = randomUUID();
+  const handler = (req, res) => {
+    const given = String(req.headers['x-request-id'] ?? '');
+    const id = /^[A-Za-z0-9-]{8,64}$/.test(given) ? given : randomUUID();
+    res.setHeader('x-request-id', id);
+    return requestContext.run({ id }, () => serveOne(req, res, id));
+  };
+
+  const serveOne = async (req, res, id) => {
     const url = new URL(req.url, 'https://x');
     const route = routes.find((r) => r.method === req.method && r.path === url.pathname);
     const t0 = Date.now();

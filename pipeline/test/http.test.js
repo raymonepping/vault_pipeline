@@ -13,7 +13,3 @@ test('guest lists come from config/pipeline.json', () => {
   assert.deepEqual([...guestList(cfg, 'librarian').get('ask')], ['console']);
   assert.throws(() => guestList(cfg, 'nobody'));
 });
-
-test('only the scribe may knock on the keeper\'s ping door', () => {
-  assert.deepEqual([...guestList(cfg, 'keeper').get('ping')], ['scribe']);
-});

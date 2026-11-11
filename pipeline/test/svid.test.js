@@ -56,12 +56,15 @@ test('another issuer, a missing jti, a foreign trust domain, garbage', async () 
   await refused(v, 'not.a.jwt', 'malformed');
 });
 
-test('an unknown kid makes one refetch, then a refusal', async () => {
+test('an unknown kid refetches the JWKS at most every 30 s', async () => {
   const v = verifier();
   await v.verify(token());
   const before = fetches;
+  for (let i = 0; i < 5; i++) await refused(v, token({}, { kid: `made-up-${i}` }), 'bad-signature');
+  assert.equal(fetches, before, 'no refetch within 30 s of the last one');
+  clock += 31;
   await refused(v, token({}, { kid: 'k2' }), 'bad-signature');
-  assert.equal(fetches, before + 1);
+  assert.equal(fetches, before + 1, 'one refetch after 30 s');
 });
 
 test('SPIFFE IDs map to workload names, nothing else does', () => {

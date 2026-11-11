@@ -23,7 +23,9 @@ export class SecretZeroError extends Error {}
 export async function fetchWithin(url, init = {}, ms = 10_000) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(new Error(`timeout after ${ms} ms: ${url}`)), ms);
-  try { return await fetch(url, { ...init, signal: ac.signal }); } finally { clearTimeout(t); }
+  const { signal, ...rest } = init;
+  signal?.addEventListener('abort', () => ac.abort(signal.reason), { once: true });
+  try { return await fetch(url, { ...rest, signal: ac.signal }); } finally { clearTimeout(t); }
 }
 
 export function createVault({ addrs, log = () => {} }) {

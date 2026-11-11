@@ -8,25 +8,12 @@
       "spiffe_path": "/workload/scribe",
       "address": "10.89.230.11",
       "port": 8443,
-      "vault_may": [
-        "mint its own SVID",
-        "create data keys for handbook and board"
-      ],
-      "vault_refuses": [
-        "decrypt",
-        "rewrap",
-        "the database"
-      ],
       "creates_data_keys": true,
       "decrypts": false,
       "accepts": [
         {
           "from": "console",
           "op": "ingest"
-        },
-        {
-          "from": "console",
-          "op": "reseal"
         },
         {
           "from": "console",
@@ -39,25 +26,12 @@
       "spiffe_path": "/workload/keeper",
       "address": "10.89.230.12",
       "port": 8443,
-      "vault_may": [
-        "mint its own SVID",
-        "a database credential for the pipeline tables",
-        "rewrap encrypted data keys"
-      ],
-      "vault_refuses": [
-        "decrypt",
-        "create data keys"
-      ],
       "creates_data_keys": false,
       "decrypts": false,
       "accepts": [
         {
           "from": "scribe",
           "op": "store"
-        },
-        {
-          "from": "scribe",
-          "op": "ping"
         },
         {
           "from": "librarian",
@@ -94,14 +68,6 @@
       "spiffe_path": "/workload/librarian",
       "address": "10.89.230.13",
       "port": 8443,
-      "vault_may": [
-        "mint its own SVID"
-      ],
-      "vault_refuses": [
-        "decrypt with its own token",
-        "create data keys",
-        "the database"
-      ],
       "creates_data_keys": false,
       "decrypts": false,
       "accepts": [
@@ -120,16 +86,6 @@
       "spiffe_path": "/workload/console",
       "address": "10.89.230.14",
       "port": 3000,
-      "vault_may": [
-        "mint its own SVID",
-        "rotate a collection key and raise its minimum decryption version"
-      ],
-      "vault_refuses": [
-        "decrypt",
-        "create data keys",
-        "rewrap",
-        "the database"
-      ],
       "creates_data_keys": false,
       "decrypts": false,
       "accepts": []
@@ -187,16 +143,6 @@
         "pipeline-board",
         "pipeline-operators"
       ]
-    }
-  ],
-  "questions": [
-    {
-      "collection": "handbook",
-      "text": "How many days do I have to file a travel expense?"
-    },
-    {
-      "collection": "board",
-      "text": "What is Project Lighthouse?"
     }
   ]
 }

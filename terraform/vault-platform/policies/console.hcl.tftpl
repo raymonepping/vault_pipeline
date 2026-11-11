@@ -4,5 +4,11 @@ path "spiffe/role/console/mintjwt" { capabilities = ["update"] }
 %{ for c in collections ~}
 path "transit/keys/${c}" { capabilities = ["read"] }
 path "transit/keys/${c}/rotate" { capabilities = ["update"] }
-path "transit/keys/${c}/config" { capabilities = ["update"] }
+# The minimum version only: never exportable, deletable or plaintext backups.
+path "transit/keys/${c}/config" {
+  capabilities = ["update"]
+  allowed_parameters = {
+    "min_decryption_version" = []
+  }
+}
 %{ endfor ~}

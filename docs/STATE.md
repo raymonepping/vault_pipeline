@@ -374,3 +374,44 @@ cold start from a stopped stack passed (prompt 09).
 **Not done:** no commit. The scaffold's pre-commit hook must be parked first
 (`mv .git/hooks/pre-commit .git/hooks/pre-commit.disabled`), then
 `commit_gh --no-hook`, when the user asks.
+
+## Prompt 12: Clean, round 1 (2026-11-11)
+
+Reviews on commit `de0bee0`: ponytail audit (8), ponytail review (6),
+backend-design audit (6), security discipline (7): 27 to-dos, all fixed.
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 1 | Act IV raised the minimum version even when a rewrap failed: that document would be unreadable for good | the console stops before raising it and names the documents |
+| 2 | An unknown `kid` refetched the JWKS every time | at most every 30 s (unit test) |
+| 3 | A person who left mid-answer kept the model busy and the token alive | the console aborts the librarian call on close and revokes at once |
+| 4 | An ingest failing after "pressed" showed no error | an `error` event before the stream ends |
+| 5 | `make lab` delivered secret zero three times | the `deliver` phase is gone (`make deliver` stays) |
+| 6 | `vault_may`/`vault_refuses` in the config were never read | removed |
+| 7 | `vault_list_json` unused | removed |
+| 8 | The console's header comment described live badge checks | corrected |
+| 9 | The scribe's `/reseal` door was dead | removed with its op |
+| 10 | The keeper's `/ping` door was dead | removed with its op and test |
+| 11 | `questions` in the config were never read | removed |
+| 12 | A leftover temp file could fail rehearsal check I1 | fingerprints in a variable |
+| 13 | Act III tagged tests by guessing from their names | `unit-tests.sh` runs file by file |
+| 14 | The Custody picker had the documents typed in | built from `/api/collections` |
+| 15 | Two operators pressing at once raced the key's minimum version | one act at a time (409 `busy`) |
+| 16 | The librarian reported a Vault outage as a refusal | only Vault's 4xx answer is a refusal |
+| 17 | Custody rows that failed to write were swallowed | the operation fails (refusals still log) |
+| 18 | The keeper's health ignored the database | `SELECT 1` with Vault's credential |
+| 19 | Request ids stopped at the console | carried on every workload call (AsyncLocalStorage in `http.js`) |
+| 20 | The custody query's OR on JSONB could not use its index | one `searched` row per document |
+| 21 | The console's token could set any key config (exportable, deletion) | `allowed_parameters = { min_decryption_version }` |
+| 22 | The console accepted TLS 1.2 | 1.3, like the rest |
+| 23 | No HSTS from the web front | `Strict-Transport-Security` |
+| 24 | One person could queue many questions and stall the model | one question at a time per person (409) |
+| 25 | The console mounted all of `.build/` | only `.build/console/` (layers, unit tests) |
+| 26 | Postgres and Ollama ran without `no-new-privileges` or dropped capabilities | both hardened |
+| 27 | Ollama's lack of authentication was not documented | in `docs/security-model.md` |
+
+**Validation (2026-11-11):** unit tests 20/20 and 6/6; `make verify` all
+green (lint, 32 + 20 boundary checks, both plans empty, rehearsal 22/22 in
+17 s); `make test-ui` 10/10 with screenshots; a second act during an ingest
+answered 409 `busy`; one question's request id appears in the keeper's log;
+the keeper's health reports `db: true`.

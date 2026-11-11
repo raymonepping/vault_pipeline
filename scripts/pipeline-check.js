@@ -69,7 +69,6 @@ export function check(cfg, { corpusDir } = {}) {
     req(NAME.test(p.user ?? ''), `person ${p.user} is not a plain name`);
     for (const g of p.groups ?? []) req(groups.has(g), `${p.user}: unknown group ${g}`);
   }
-  for (const q of cfg.questions ?? []) req(cols.some((c) => c.name === q.collection), `question for unknown collection ${q.collection}`);
   return errs;
 }
 

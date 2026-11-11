@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { createVault, fetchWithin, SecretZeroError } from './vault.js';
 import { createMinter, createVerifier } from './svid.js';
-import { log } from './http.js';
+import { log, requestContext } from './http.js';
 
 export function settings(name) {
   const cfg = JSON.parse(readFileSync(process.env.PIPELINE_CONFIG ?? '/config/pipeline.json', 'utf8'));
@@ -41,13 +41,14 @@ export async function start(name) {
   const mint = createMinter({ vault, self: name, trustDomain: s.cfg.trust_domain });
 
   // call(callee, method, path, body?) with a fresh SVID; returns the Response.
-  async function call(callee, method, path, { body, raw, ms = 60_000 } = {}) {
+  async function call(callee, method, path, { body, raw, ms = 60_000, signal } = {}) {
     const w = s.cfg.workloads.find((x) => x.name === callee);
     const svid = await mint(callee);
     return fetchWithin(`https://${callee}:${w.port}${path}`, {
       method,
-      headers: { authorization: `Bearer ${svid}`, ...(body !== undefined ? { 'content-type': raw ? 'application/x-ndjson' : 'application/json' } : {}) },
+      headers: { authorization: `Bearer ${svid}`, ...(requestContext.getStore()?.id ? { 'x-request-id': requestContext.getStore().id } : {}), ...(body !== undefined ? { 'content-type': raw ? 'application/x-ndjson' : 'application/json' } : {}) },
       body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
+      signal,
     }, ms);
   }
 

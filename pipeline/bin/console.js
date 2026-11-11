@@ -2,13 +2,14 @@
 // D15). Its own AppRole and SVID; it may rotate a collection key and raise
 // its minimum version, and nothing else in Vault. It signs people in
 // (Keycloak, PKCE BFF), logs a person in to Vault for one question and
-// revokes that token when the answer ends, calls the scribe, keeper and
-// librarian with its own badges, and runs the checks of Acts III and IV
-// against the real workloads. Never returns or logs a token.
+// revokes that token when the answer ends, and calls the scribe, keeper and
+// librarian with its own badges. Act III shows the guest lists and the
+// verifier's unit tests; Act IV runs live. Never returns or logs a token.
 import { createServer } from 'node:https';
 import { readFileSync, existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { start } from '../lib/workload.js';
+import { requestContext } from '../lib/http.js';
 import { VaultError } from '../lib/vault.js';
 import * as auth from '../lib/session.js';
 
@@ -18,6 +19,11 @@ const LAYERS = process.env.LAYERS_FILE ?? '/build/layers.json';
 const PEERS = ['scribe', 'keeper', 'librarian'];
 const MAX_BODY = 64 * 1024;
 const PROBE_TEXT = 'Larkspur'; // the company's name: in every document, never in the database
+// One act at a time (two operators pressing at once would race the key's
+// minimum version), and one question at a time per person (the CPU model
+// serves one answer at a time).
+let actRunning = null;
+const asking = new Set();
 
 const fail = (status, code, message) => Object.assign(new Error(message), { status, code });
 
@@ -73,7 +79,7 @@ async function line() {
     trust_domain: w.cfg.trust_domain,
     issuer: w.issuer,
     jwks_kids: jwks.keys.map((k) => k.kid),
-    workloads: w.cfg.workloads.map(({ name, spiffe_path, address, vault_may, vault_refuses, accepts }) => ({ name, spiffe_id: `spiffe://${w.cfg.trust_domain}${spiffe_path}`, address, vault_may, vault_refuses, accepts, powers: powers[name] })),
+    workloads: w.cfg.workloads.map(({ name, spiffe_path, address, accepts }) => ({ name, spiffe_id: `spiffe://${w.cfg.trust_domain}${spiffe_path}`, address, accepts, powers: powers[name] })),
     collections: w.cfg.collections.map(({ name, reader_group, documents }) => ({ name, reader_group, documents })),
   };
 }
@@ -82,11 +88,14 @@ async function line() {
 async function ask(res, who, question) {
   const send = stream(res);
   let personToken = null;
+  // The browser left: stop the librarian, and revoke the token now.
+  const gone = new AbortController();
+  res.on('close', () => { if (!res.writableEnded) gone.abort(new Error('the browser left')); });
   try {
     const l = await w.vault.call('POST', 'auth/jwt/login', { body: { role: 'person', jwt: who.accessToken }, as: null });
     personToken = l.auth.client_token;
     send({ event: 'vault_login', person: who.user, policies: l.auth.identity_policies ?? [], ttl: l.auth.lease_duration });
-    const r = await w.call('librarian', 'POST', '/ask', { body: { question, person_token: personToken, person: who.user }, ms: 300_000 });
+    const r = await w.call('librarian', 'POST', '/ask', { body: { question, person_token: personToken, person: who.user }, ms: 300_000, signal: gone.signal });
     await relay(res, r);
   } catch (e) {
     send({ event: 'error', message: e instanceof VaultError ? `Vault said: ${e.said}` : e.message });
@@ -144,6 +153,10 @@ async function lostBackup(res, who) {
     send({ event: 'rotated', collection: col.name, from: before.latest_version, to: rotated });
     const rw = await peer('keeper', 'POST', '/rewrap', { collection: col.name });
     send({ event: 'rewrapped', ...rw });
+    // Never raise the minimum over a key that is still on an old version:
+    // that document would be unreadable for good.
+    const stuck = rw.rewrapped.filter((r) => r.error);
+    if (stuck.length) throw new Error(`not raising the minimum: ${stuck.map((r) => `${r.doc_id} (${r.error})`).join(', ')} still on an older version; press again`);
     await w.vault.call('POST', `transit/keys/${col.key}/config`, { body: { min_decryption_version: rotated } });
     send({ event: 'minimum_raised', collection: col.name, min_decryption_version: rotated });
     const relock = await peer('keeper', 'POST', '/relock', { collection: col.name, edk: old.edk });
@@ -159,14 +172,18 @@ async function lostBackup(res, who) {
 // ── The server ──────────────────────────────────────────────────────────────
 const json = (res, status, b) => res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(b));
 
-async function handle(req, res) {
+function handle(req, res) {
   const rid = randomUUID();
+  return requestContext.run({ id: rid }, () => serve(req, res, rid));
+}
+
+async function serve(req, res, rid) {
   const url = new URL(req.url, 'https://console');
   res.setHeader('x-request-id', rid);
   res.setHeader('x-content-type-options', 'nosniff');
   const t0 = Date.now();
   res.on('finish', () => { if (url.pathname !== '/healthz') w.logger('request', { id: rid, method: req.method, path: url.pathname, status: res.statusCode, ms: Date.now() - t0 }); });
-  const route = `${req.method} ${url.pathname}`;
+  const route = `${req.method} ${url.pathname}`; // e.g. 'POST /api/ask'
   try {
     if (auth.crossSiteWrite(req)) throw fail(403, 'cross_site', 'a write from another site is refused');
     if (route === 'GET /healthz') return json(res, 200, { ok: w.vault.ready, workload: 'console' });
@@ -186,7 +203,10 @@ async function handle(req, res) {
     if (route === 'GET /api/me') return json(res, 200, who ? { signedIn: true, user: who.user, name: who.name, groups: who.groups, operator: who.operator } : { signedIn: false });
     if (!who) throw fail(401, 'unauthenticated', 'sign in first');
     if (route === 'GET /api/line') return json(res, 200, await line());
-    if (route === 'GET /api/collections') return json(res, 200, await peer('keeper', 'GET', '/custody'));
+    if (route === 'GET /api/collections') {
+      const { documents } = await peer('keeper', 'GET', '/custody');
+      return json(res, 200, { documents, collections: w.cfg.collections.map(({ name, documents: ids }) => ({ name, documents: ids })) });
+    }
     if (route === 'GET /api/custody') {
       const doc = url.searchParams.get('doc');
       if (doc && !w.cfg.collections.some((c) => c.documents.includes(doc))) throw fail(404, 'unknown_document', doc);
@@ -195,14 +215,28 @@ async function handle(req, res) {
     if (route === 'POST /api/ask') {
       const { question } = await body(req);
       if (typeof question !== 'string' || !question.trim() || question.length > 500) throw fail(400, 'bad_question', 'a question of 1 to 500 characters');
+      if (asking.has(who.user)) throw fail(409, 'busy', `${who.user} has a question running; one at a time`);
+      asking.add(who.user);
+      res.on('close', () => asking.delete(who.user));
       return await ask(res, who, question.trim());
     }
-    if (req.method === 'POST' && url.pathname.startsWith('/api/acts/') && !who.operator) throw fail(403, 'not_an_operator', `${who.user} is not in pipeline-operators`);
+    if (req.method === 'POST' && url.pathname.startsWith('/api/acts/')) {
+      if (!who.operator) throw fail(403, 'not_an_operator', `${who.user} is not in pipeline-operators`);
+      if (actRunning) throw fail(409, 'busy', `${actRunning} is running; one act at a time`);
+      actRunning = `${url.pathname.slice(10)} (pressed by ${who.user})`;
+      res.on('close', () => { actRunning = null; });
+    }
     if (route === 'POST /api/acts/ingest') {
       const { collection } = await body(req);
       if (!w.cfg.collections.some((c) => c.name === collection)) throw fail(400, 'unknown_collection', String(collection));
-      stream(res)({ event: 'pressed', by: who.user });
-      return await relay(res, await w.call('scribe', 'POST', '/ingest', { body: { collection }, ms: 300_000 })).finally(() => res.end());
+      const send = stream(res);
+      send({ event: 'pressed', by: who.user });
+      try {
+        await relay(res, await w.call('scribe', 'POST', '/ingest', { body: { collection }, ms: 300_000 }));
+      } catch (e) {
+        send({ event: 'error', message: e.message });
+      }
+      return res.end();
     }
     if (route === 'POST /api/acts/backup') return await lostBackup(res, who);
     if (route === 'POST /api/acts/reset') return json(res, 200, await peer('keeper', 'POST', '/forget', {}));
@@ -215,4 +249,4 @@ async function handle(req, res) {
   }
 }
 
-createServer({ key: readFileSync(w.tls.key), cert: readFileSync(w.tls.cert), minVersion: 'TLSv1.2' }, handle).listen(PORT, '0.0.0.0', () => w.logger('listening', { port: PORT }));
+createServer({ key: readFileSync(w.tls.key), cert: readFileSync(w.tls.cert), minVersion: 'TLSv1.3' }, handle).listen(PORT, '0.0.0.0', () => w.logger('listening', { port: PORT }));

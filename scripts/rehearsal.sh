@@ -27,15 +27,15 @@ echo "Reset"
 check R0 "the console forgets the stored documents" '"forgotten":[0-9]+' "$(console_call ada POST /api/acts/reset '{}')"
 
 echo "I: Into the Pipe"
+fps=""
 for c in handbook board; do
   out=$(console_call ada POST /api/acts/ingest "$(jq -cn --arg c "$c" '{collection: $c}')")
   check "I-$c" "$c sealed: three documents stored by the keeper" '^3$' "$(jq -s '[.[] | select(.event == "document" and .keeper.status == 200)] | length' <<<"$out")"
-  printf '%s\n' "$out" | jq -r 'select(.event == "document") | .dek_fingerprint' >>"$BUILD_DIR/rehearsal-fps.tmp"
+  fps+=$(jq -r 'select(.event == "document") | .dek_fingerprint' <<<"$out")$'\n'
 done
-check I1 "six different data keys" '^6$' "$(sort -u "$BUILD_DIR/rehearsal-fps.tmp" | wc -l | tr -d ' ')"
-rm -f "$BUILD_DIR/rehearsal-fps.tmp"
+check I1 "six different data keys" '^6$' "$(grep -v '^$' <<<"$fps" | sort -u | wc -l | tr -d ' ')"
 check I2 "a viewer cannot press ingest" 'not_an_operator' "$(console_call vera POST /api/acts/ingest '{"collection":"board"}')"
-check I3 "frames refuse tampering, reordering, truncation (unit tests)" '"failed": 0' "$(cat "$BUILD_DIR/unit-tests.json")"
+check I3 "frames refuse tampering, reordering, truncation (unit tests)" '"failed": 0' "$(cat "$BUILD_DIR/console/unit-tests.json")"
 
 echo "II: The Librarian"
 out=$(ask vera "What is Project Lighthouse?")

@@ -31,7 +31,9 @@ services:
     volumes:
       - ../../config/pipeline.json:/config/pipeline.json:ro
       - ../../vault-tls:/tls:ro
-      - ../../.build:/build:ro
+      # Only what the console shows (layers, unit test results), never the
+      # rest of .build/ (deliver records, Ansible variables, logs).
+      - ../../.build/console:/build:ro
       - ../../.secrets/workloads/console:/run/secret-zero:ro
       # Only this identity file, never .secrets/identity itself.
       - ../../.secrets/identity/console-client-secret:/run/secrets/console-client-secret:ro

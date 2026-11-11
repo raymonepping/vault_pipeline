@@ -15,7 +15,6 @@ ansible keys
 make    data-up
 ansible schema
 ansible models
-ansible deliver
 make    pipeline-up
 make    app-up
 ansible validate

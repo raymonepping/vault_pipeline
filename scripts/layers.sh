@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/layers.sh (make layers): .build/layers.json, one row per phase in
+# scripts/layers.sh (make layers): .build/console/layers.json, one row per phase in
 # run order with its tool and evidence, plus the gates. Non-secret: counts,
 # times, results. The console's Layers page reads it (prompt 07).
 set -euo pipefail
@@ -42,5 +42,7 @@ gates=$(jq --argjson s "$(json_or_null "$BUILD_DIR/ansible-stats/validate.json")
 jq -n --argjson rows "$rows" --argjson gates "$gates" --argjson conv "$conv" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   '{generated_at: $at, converged: ($conv.result // null), converged_at: ($conv.finished_at // null),
     automation_digest: ($conv.automation_digest // null), phases: $rows, gates: $gates}' >"$BUILD_DIR/layers.json.tmp"
-mv "$BUILD_DIR/layers.json.tmp" "$BUILD_DIR/layers.json"
-info "Wrote .build/layers.json"
+mkdir -p "$BUILD_DIR/console"
+mv "$BUILD_DIR/layers.json.tmp" "$BUILD_DIR/console/layers.json"
+chmod 644 "$BUILD_DIR/console/layers.json"
+info "Wrote .build/console/layers.json"

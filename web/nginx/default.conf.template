@@ -18,6 +18,7 @@ server {
   # Resolve the API by name per request; requires NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1.
   resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
 
+  add_header Strict-Transport-Security "max-age=31536000" always;
   add_header X-Content-Type-Options nosniff always;
   add_header Referrer-Policy no-referrer always;
   add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'" always;
@@ -28,7 +29,8 @@ server {
   location / {
     try_files $uri $uri/ /index.html;
     add_header Cache-Control "no-cache" always;
-    add_header X-Content-Type-Options nosniff always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+  add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy no-referrer always;
     add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'" always;
   }
@@ -41,7 +43,8 @@ server {
     gzip_types text/css application/javascript image/svg+xml;
     gzip_vary on;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
-    add_header X-Content-Type-Options nosniff always;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+  add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy no-referrer always;
     add_header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'" always;
   }

@@ -47,6 +47,9 @@ No root token exists after bootstrap.
   those powers are; it does not claim to stop code running inside a
   workload.
 - **Keycloak and Ollama** run without TLS inside the network and on loopback.
+- **Ollama has no authentication.** Any container on `vpip-internal` can ask
+  it for embeddings and answers; it holds no documents, only the two models.
+  The lab's own containers are the only ones on that network.
 - **The model** (`qwen2.5:1.5b`) fills gaps with plausible text. When the
   closest match is a document Vault refused for the asker, the librarian
   declines instead of answering from the passages that are left.

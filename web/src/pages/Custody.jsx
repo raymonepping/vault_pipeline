@@ -6,10 +6,11 @@ import { record } from '../said.js';
 import { Hero, Mono, StatePill, hms } from '../components/ui.jsx';
 import { Gate } from '../components/gate.jsx';
 
-const DOCS = ['onboarding', 'travel-policy', 'safety-at-the-forge', 'board-2026-08', 'board-2026-09', 'board-2026-10'];
 const who = (a) => a.replace(/^spiffe:\/\/[^/]+\/workload\//, '');
 
 export default function Custody() {
+  const cols = useResource('/api/collections');
+  const docs = (cols.data?.collections ?? []).flatMap((c) => c.documents);
   const [doc, setDoc] = useState('board-2026-10');
   const { data, error } = useResource(`/api/custody?doc=${encodeURIComponent(doc)}`, { intervalMs: 10_000 });
   useEffect(() => { if (data) record(`GET /api/custody ${doc}`, data.custody.slice(-20)); }, [data, doc]);
@@ -26,7 +27,7 @@ export default function Custody() {
           <label className="form-field">
             <span className="sr-only">Document</span>
             <select value={doc} onChange={(e) => setDoc(e.target.value)}>
-              {DOCS.map((d) => <option key={d} value={d}>{d}</option>)}
+              {docs.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </label>
         </div>

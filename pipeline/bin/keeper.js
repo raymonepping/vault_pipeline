@@ -41,8 +41,10 @@ async function q(sql, params) {
     throw e;
   }
 }
+// A custody row that cannot be written fails the operation: "every hand on
+// the record" is the story's promise.
 const custody = (docId, actor, action, detail = {}) =>
-  q('INSERT INTO custody (doc_id, actor, action, detail) VALUES ($1, $2, $3, $4)', [docId, actor, action, detail]).catch((e) => w.logger('custody_failed', { message: e.message }));
+  q('INSERT INTO custody (doc_id, actor, action, detail) VALUES ($1, $2, $3, $4)', [docId, actor, action, detail]);
 
 await connect();
 const vec = (a) => {
@@ -53,10 +55,16 @@ const vec = (a) => {
 serve({
   name: 'keeper', cfg: w.cfg, verifier: w.verifier, tls: w.tls, port: w.me.port,
   // A refused badge is part of the custody story (Act III).
-  onRefused: (r) => custody(null, r.sub ?? 'unknown', 'refused', r),
+  onRefused: (r) => custody(null, r.sub ?? 'unknown', 'refused', r).catch((e) => w.logger('custody_failed', { action: 'refused', message: e.message })),
   routes: [
-    { method: 'GET', path: '/healthz', op: null, handler: async (q2, res) => json(res, 200, { ok: w.vault.ready && Boolean(pool), workload: 'keeper', db_user: lease?.user }) },
-    { method: 'GET', path: '/ping', op: 'ping', handler: (req, res, ctx) => json(res, 200, { ok: true, caller: ctx.caller }) },
+    {
+      // Healthy means the database answers with Vault's current credential.
+      method: 'GET', path: '/healthz', op: null,
+      async handler(q2, res) {
+        const db = await q('SELECT 1').then(() => true, () => false);
+        json(res, db && w.vault.ready ? 200 : 503, { ok: db && w.vault.ready, workload: 'keeper', db, db_user: lease?.user });
+      },
+    },
     {
       // One sealed document as NDJSON: header, frames, done. Replaces an
       // earlier copy of the same document in one transaction.
@@ -92,8 +100,10 @@ serve({
         const r = await q(`SELECT f.doc_id, d.collection, f.seq, (f.seq = (SELECT max(seq) FROM frames x WHERE x.doc_id = f.doc_id)) AS last,
           encode(f.frame, 'base64') AS frame, d.header, d.edk, d.key_version, f.embedding <=> $1::vector AS distance
           FROM frames f JOIN documents d USING (doc_id) ORDER BY f.embedding <=> $1::vector LIMIT $2`, [vec(vector), Math.min(Math.max(1, Number(k) | 0), 12)]);
+        // One custody row per document found, so each document's history is
+        // one indexed lookup.
         const docs = [...new Set(r.rows.map((x) => x.doc_id))];
-        await custody(null, ctx.claims.sub, 'searched', { found: docs });
+        if (docs.length) await q('INSERT INTO custody (doc_id, actor, action, detail) SELECT d, $2, \'searched\', $3 FROM unnest($1::text[]) AS d', [docs, ctx.claims.sub, { frames: r.rows.length }]);
         json(res, 200, { frames: r.rows.map((x) => ({ ...x, header: { ...x.header, edk: x.edk } })) });
       },
     },
@@ -124,7 +134,7 @@ serve({
       method: 'GET', path: '/custody', op: 'custody',
       async handler(req, res, ctx) {
         const doc = ctx.url.searchParams.get('doc');
-        const rows = (await q(`SELECT id, at, doc_id, actor, action, detail FROM custody ${doc ? 'WHERE doc_id = $1 OR (doc_id IS NULL AND detail->\'found\' ? $1)' : ''} ORDER BY id DESC LIMIT 500`, doc ? [doc] : [])).rows;
+        const rows = (await q(`SELECT id, at, doc_id, actor, action, detail FROM custody ${doc ? 'WHERE doc_id = $1' : ''} ORDER BY id DESC LIMIT 500`, doc ? [doc] : [])).rows;
         const documents = (await q('SELECT d.doc_id, d.collection, d.key_version, left(d.edk, 9) AS edk_prefix, d.sealed_by, d.sealed_at, count(f.seq)::int AS frames, sum(length(f.frame))::int AS bytes FROM documents d LEFT JOIN frames f USING (doc_id) GROUP BY d.doc_id ORDER BY d.doc_id')).rows;
         json(res, 200, { documents, custody: rows.reverse() });
       },

@@ -21,6 +21,7 @@ export const workloadOf = (trustDomain, id) => {
 };
 
 const SKEW_S = 5;
+const JWKS_REFETCH_S = 30;
 const b64json = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
 // Decode without verifying: for display only (the console shows claims).
@@ -35,15 +36,21 @@ export function decode(token) {
 export function createVerifier({ self, trustDomain, issuer, fetchJwks, now = () => Date.now() / 1000 }) {
   const selfId = spiffeId(trustDomain, self);
   let keys = new Map();
+  let fetchedAt = -Infinity;
   const seen = new Map(); // jti -> exp
 
   async function refresh() {
     const jwks = await fetchJwks();
     keys = new Map((jwks.keys ?? []).map((k) => [k.kid, createPublicKey({ key: k, format: 'jwk' })]));
+    fetchedAt = now();
   }
 
   async function keyFor(kid) {
-    if (!keys.has(kid)) await refresh(); // a rotated key: one refetch
+    // An unknown kid: Vault may have rotated. Refetch at most every 30 s, so
+    // badges with made-up kids cannot turn into one Vault call each. Vault
+    // publishes the next key ahead of time (probe P2), so a real rotation is
+    // already in the cache.
+    if (!keys.has(kid) && now() - fetchedAt > JWKS_REFETCH_S) await refresh();
     return keys.get(kid);
   }
 
