@@ -14,7 +14,7 @@
 | Collection keys `handbook`, `board` | Ansible `keys` (creates), the console (rotates in Act IV) | runtime state: the story turns them |
 | Postgres schema and the root password rotation | Ansible `schema` | an order: schema first, then Vault rotates the password away |
 | Models | Ansible `models` | pulled once, checked by ID |
-| Secret ids (wrapped, single use) | Ansible `deliver` | issued at the moment a workload starts |
+| Secret ids (wrapped, single use) | Ansible `deliver`, run by `pipeline-up` and `app-up` | issued at the moment a workload starts |
 | Data keys, encrypted data keys, stored documents | the scribe and the keeper | the story's data |
 | Rewrapped keys | the keeper | it may rewrap, never open |
 | People and groups | OpenLDAP, federated into Keycloak (`identity-up`) | identity exists before Vault trusts it |
@@ -23,5 +23,4 @@
 | Containers, network, volumes | Compose through `scripts/compose.sh` | never Vault configuration |
 
 `make tf-plan-all` stays empty after a full show; `make idempotency` reports
-`changed=0` for every Ansible phase except `deliver`, which is single use by
-design.
+`changed=0` for every Ansible phase.

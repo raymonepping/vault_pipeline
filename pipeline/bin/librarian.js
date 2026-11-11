@@ -7,7 +7,7 @@
 import { start, ollama } from '../lib/workload.js';
 import { serve, readJson, ndjson, json, HttpError } from '../lib/http.js';
 import { openFrame } from '../lib/envelope.js';
-import { VaultError } from '../lib/vault.js';
+import { isRefusal } from '../lib/vault.js';
 
 const w = await start('librarian');
 const llm = ollama(w.ollama);
@@ -28,9 +28,7 @@ async function openForAsker(personToken, frames) {
     try {
       dek = Buffer.from((await w.vault.callAs(personToken, 'POST', `transit/decrypt/${d.key}`, { body: { ciphertext: d.header.edk } })).data.plaintext, 'base64');
     } catch (e) {
-      // Only Vault's own 4xx answer is a refusal. An unreachable Vault is an
-      // error, never "you may not read this".
-      if (!(e instanceof VaultError) || e.status < 400 || e.status >= 500) throw e;
+      if (!isRefusal(e)) throw e;
       refused.push({ doc_id: d.doc_id, collection: d.collection, status: e.status, vault_said: e.said, passages: d.frames.length });
       continue;
     }

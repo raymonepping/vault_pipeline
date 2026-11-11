@@ -48,11 +48,13 @@ n=$((n + 1)); banner "$n/$total" "gate: boundary"
 ./scripts/boundary-check.sh || fail "The boundary gate" "make boundary"
 
 vault_cluster
+# Computed first: a failure here stops make lab (inside --arg it was silent).
+digest=$(./scripts/automation-digest.sh)
 jq -n \
   --arg started "$started_at" \
   --arg finished "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --argjson seconds "$(($(date +%s) - t_start))" \
-  --arg digest "$(./scripts/automation-digest.sh)" \
+  --arg digest "$digest" \
   --arg version "$(vault_json | jq -r .version)" \
   --argjson phases "$(printf '%s\n' "${PHASES[@]}" | jq -R 'split(" ") | {tool: .[0], phase: .[1]}' | jq -s .)" \
   --argjson timings "$timings" \

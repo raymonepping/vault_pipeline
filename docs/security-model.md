@@ -56,6 +56,14 @@ No root token exists after bootstrap.
 - **Postgres** is not in `make backup`: only Vault knows its root password,
   and the keeper's credential is short-lived. Its volume holds ciphertext.
 
+## Public routes
+
+The console answers these without a sign-in, from one named list in
+`pipeline/bin/console.js` (`PUBLIC`): `/healthz`, the sign-in round trip,
+`/api/me`, `/api/layers` (how the lab was built) and `/api/acts/badges`
+(Act III's guest lists and test results). Every other route needs a
+signed-in person; every act button needs an operator.
+
 ## Never in a log or a response
 
 Tokens, secret ids, data keys, SVIDs, passwords, the licence. The workloads

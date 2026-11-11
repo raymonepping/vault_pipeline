@@ -12,6 +12,7 @@ import { start } from '../lib/workload.js';
 import { requestContext } from '../lib/http.js';
 import { VaultError } from '../lib/vault.js';
 import * as auth from '../lib/session.js';
+import { exclusive } from '../lib/exclusive.js';
 
 const w = await start('console');
 const PORT = w.me.port;
@@ -19,11 +20,12 @@ const LAYERS = process.env.LAYERS_FILE ?? '/build/layers.json';
 const PEERS = ['scribe', 'keeper', 'librarian'];
 const MAX_BODY = 64 * 1024;
 const PROBE_TEXT = 'Larkspur'; // the company's name: in every document, never in the database
-// One act at a time (two operators pressing at once would race the key's
-// minimum version), and one question at a time per person (the CPU model
-// serves one answer at a time).
-let actRunning = null;
-const asking = new Set();
+// One act at a time, one question per person (lib/exclusive.js).
+const acts = exclusive();
+const questions = exclusive();
+// The only routes that answer without a sign-in: what the house is built
+// from, and Act III's guest lists and test results. Nothing secret in either.
+const PUBLIC = new Set(['GET /healthz', 'GET /auth/login', 'GET /auth/callback', 'POST /auth/logout', 'GET /auth/logout', 'GET /api/layers', 'GET /api/acts/badges', 'GET /api/me']);
 
 const fail = (status, code, message) => Object.assign(new Error(message), { status, code });
 
@@ -45,7 +47,7 @@ async function peer(callee, method, path, payload) {
 }
 
 // Pipe a workload's NDJSON stream to the browser, event by event.
-async function relay(res, r, onEvent = (e) => e) {
+async function relay(res, r) {
   if (!r.ok) {
     const j = await r.json().catch(() => ({}));
     res.write(`${JSON.stringify({ event: 'error', status: r.status, message: j.error?.message ?? `HTTP ${r.status}` })}\n`);
@@ -59,7 +61,7 @@ async function relay(res, r, onEvent = (e) => e) {
     while ((i = buf.indexOf('\n')) >= 0) {
       const line = buf.slice(0, i);
       buf = buf.slice(i + 1);
-      if (line) res.write(`${JSON.stringify(onEvent(JSON.parse(line)))}\n`);
+      if (line) res.write(`${line}\n`);
     }
   }
 }
@@ -186,6 +188,9 @@ async function serve(req, res, rid) {
   const route = `${req.method} ${url.pathname}`; // e.g. 'POST /api/ask'
   try {
     if (auth.crossSiteWrite(req)) throw fail(403, 'cross_site', 'a write from another site is refused');
+    // Closed by default: anything not on the PUBLIC list needs a signed-in person.
+    const who = route === 'GET /healthz' ? null : await auth.person(req);
+    if (!who && !PUBLIC.has(route)) throw fail(401, 'unauthenticated', 'sign in first');
     if (route === 'GET /healthz') return json(res, 200, { ok: w.vault.ready, workload: 'console' });
     if (route === 'GET /auth/login') return res.writeHead(302, { location: auth.login(url) }).end();
     if (route === 'GET /auth/callback') {
@@ -198,10 +203,7 @@ async function serve(req, res, rid) {
     }
     if (route === 'GET /api/layers') return json(res, 200, existsSync(LAYERS) ? JSON.parse(readFileSync(LAYERS, 'utf8')) : null);
     if (route === 'GET /api/acts/badges') return json(res, 200, badgeCheck());
-
-    const who = await auth.person(req);
     if (route === 'GET /api/me') return json(res, 200, who ? { signedIn: true, user: who.user, name: who.name, groups: who.groups, operator: who.operator } : { signedIn: false });
-    if (!who) throw fail(401, 'unauthenticated', 'sign in first');
     if (route === 'GET /api/line') return json(res, 200, await line());
     if (route === 'GET /api/collections') {
       const { documents } = await peer('keeper', 'GET', '/custody');
@@ -215,17 +217,23 @@ async function serve(req, res, rid) {
     if (route === 'POST /api/ask') {
       const { question } = await body(req);
       if (typeof question !== 'string' || !question.trim() || question.length > 500) throw fail(400, 'bad_question', 'a question of 1 to 500 characters');
-      if (asking.has(who.user)) throw fail(409, 'busy', `${who.user} has a question running; one at a time`);
-      asking.add(who.user);
-      res.on('close', () => asking.delete(who.user));
-      return await ask(res, who, question.trim());
+      return await questions.run(who.user, `${who.user}'s question`, () => ask(res, who, question.trim()));
     }
     if (req.method === 'POST' && url.pathname.startsWith('/api/acts/')) {
       if (!who.operator) throw fail(403, 'not_an_operator', `${who.user} is not in pipeline-operators`);
-      if (actRunning) throw fail(409, 'busy', `${actRunning} is running; one act at a time`);
-      actRunning = `${url.pathname.slice(10)} (pressed by ${who.user})`;
-      res.on('close', () => { actRunning = null; });
+      return await acts.run('act', `${url.pathname.slice(10)} (pressed by ${who.user})`, () => act(route, req, res, who));
     }
+    throw fail(404, 'not_found', route);
+  } catch (e) {
+    const status = e.status ?? (e instanceof auth.Unauthenticated ? 401 : 500);
+    if (status === 500) w.logger('error', { id: rid, path: url.pathname, message: e.message });
+    if (!res.headersSent) json(res, status, { error: { code: e.code ?? 'internal', message: status === 500 ? 'internal error' : e.message, request_id: rid } });
+    else res.end();
+  }
+}
+
+// The operators' buttons, one at a time.
+async function act(route, req, res, who) {
     if (route === 'POST /api/acts/ingest') {
       const { collection } = await body(req);
       if (!w.cfg.collections.some((c) => c.name === collection)) throw fail(400, 'unknown_collection', String(collection));
@@ -241,12 +249,6 @@ async function serve(req, res, rid) {
     if (route === 'POST /api/acts/backup') return await lostBackup(res, who);
     if (route === 'POST /api/acts/reset') return json(res, 200, await peer('keeper', 'POST', '/forget', {}));
     throw fail(404, 'not_found', route);
-  } catch (e) {
-    const status = e.status ?? (e instanceof auth.Unauthenticated ? 401 : 500);
-    if (status === 500) w.logger('error', { id: rid, path: url.pathname, message: e.message });
-    if (!res.headersSent) json(res, status, { error: { code: e.code ?? 'internal', message: status === 500 ? 'internal error' : e.message, request_id: rid } });
-    else res.end();
-  }
 }
 
 createServer({ key: readFileSync(w.tls.key), cert: readFileSync(w.tls.cert), minVersion: 'TLSv1.3' }, handle).listen(PORT, '0.0.0.0', () => w.logger('listening', { port: PORT }));

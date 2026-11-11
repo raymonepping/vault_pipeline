@@ -53,8 +53,6 @@ path "auth/approle/role/vpip-librarian" { capabilities = ["create", "read", "upd
 path "auth/approle/role/vpip-librarian/role-id" { capabilities = ["read"] }
 path "auth/approle/role/vpip-console" { capabilities = ["create", "read", "update", "delete"] }
 path "auth/approle/role/vpip-console/role-id" { capabilities = ["read"] }
-path "auth/approle/role/vpip-intruder" { capabilities = ["create", "read", "update", "delete"] }
-path "auth/approle/role/vpip-intruder/role-id" { capabilities = ["read"] }
 
 # ── Identity: external groups and their aliases on jwt/ ──────────────────────
 path "identity/group" { capabilities = ["create", "update"] }

@@ -19,6 +19,10 @@ export class VaultError extends Error {
 
 export class SecretZeroError extends Error {}
 
+// A refusal is Vault's own 4xx answer. A timeout or an unreachable Vault is
+// an error, never "you may not read this".
+export const isRefusal = (e) => e instanceof VaultError && e.status >= 400 && e.status < 500;
+
 // A timeout that cannot silently never fire (MEMORY: AbortSignal.timeout).
 export async function fetchWithin(url, init = {}, ms = 10_000) {
   const ac = new AbortController();

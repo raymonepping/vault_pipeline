@@ -415,3 +415,35 @@ green (lint, 32 + 20 boundary checks, both plans empty, rehearsal 22/22 in
 17 s); `make test-ui` 10/10 with screenshots; a second act during an ingest
 answered 409 `busy`; one question's request id appears in the keeper's log;
 the keeper's health reports `db: true`.
+
+## Prompt 12: Clean, round 2 (2026-11-11)
+
+Reviews on commit "Clean round 1": ponytail audit (5), ponytail review (1),
+backend-design audit (1), security discipline (1): 8 to-dos, all fixed.
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 28 | The busy flags were released when the browser connection closed, so a reload during Act IV let a second act race the first | `pipeline/lib/exclusive.js`: the slot is freed in `finally`, when the work ends |
+| 29 | The docs still listed `deliver` as a phase | `operations.md`, `ownership.md` |
+| 30 | The README guessed "about 10 minutes" for a first run nobody had timed | removed; the run from nothing below is measured |
+| 31 | The bootstrap policies still granted paths on the deleted `vpip-intruder` AppRole | lines removed; applied by a rebuild from nothing (the user ran `make clean-slate`, 2026-11-11) |
+| 32 | `relay()` had an unused parameter | removed |
+| 33 | The new guards and the refusal rule had no tests | `exclusive.test.js` (busy, freed on failure, other keys never wait), `vault.test.js` (`isRefusal`, Vault's wrapped errors) |
+| 34 | The keeper's `/store` skipped the reconnect on a dead credential | `client()` reconnects like `q()` |
+| 35 | Public routes were public by position | a named `PUBLIC` list is the gate, documented in `security-model.md` |
+
+**Validation before the rebuild (2026-11-11):** unit tests 23/23;
+`make verify` all green; `make test-ui` 10/10; an ingest whose client went
+away still held the act slot (a second press: 409 `busy`); a signed-out
+`/api/line`: 401, the public badge check: 200.
+
+**The run from nothing (2026-11-11):** the user ran `make clean-slate`
+(0 containers, only the models volume kept, keys moved to
+`.secrets/legacy/`); `make lab` converged in **208 s** with every gate green
+(idempotency, drift, secret scan, boundary 32 + 20). Then `make verify` all
+green (rehearsal 22/22 in 26 s) and `make test-ui` 10/10. Finding 31 is
+applied: the new cluster's bootstrap policies have no intruder paths.
+
+| # | Found during the rebuild | Fix |
+| --- | --- | --- |
+| 36 | `lab.sh` called `scripts/automation-digest.sh`, set aside in prompt 01, so every run recorded an empty digest without failing (`--arg "$(...)"` hides the error) | the script restored for this lab's inputs; `lab.sh` computes the digest first, so a failure stops the run. A second `make lab` recorded digest `6a9662f73954` |

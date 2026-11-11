@@ -10,7 +10,7 @@ and `scripts/ansible.sh`.
 | --- | --- |
 | From nothing (phases, then the gates) | `make env-init && make license && make gen-certs && make lab` |
 | List the phases | `make phases` |
-| One phase again | `make seal-up`, `seal-init`, `vault-seal`, `seal-tokens`, `vault-up`, `bootstrap`, `identity-up`, `vault-platform`, `keys`, `data-up`, `schema`, `models`, `deliver`, `pipeline-up`, `app-up`, `validate` |
+| One phase again | `make seal-up`, `seal-init`, `vault-seal`, `seal-tokens`, `vault-up`, `bootstrap`, `identity-up`, `vault-platform`, `keys`, `data-up`, `schema`, `models`, `pipeline-up`, `app-up`, `validate`; secret zero by hand: `make deliver` (`pipeline-up` and `app-up` deliver their own) |
 | Start after `make down` or a reboot | `make up` |
 | Stop, keep every volume | `make down` |
 | Rebuild images | `make app-build TARGETS="worker web"`, then `make pipeline-up` and `make app-up` |

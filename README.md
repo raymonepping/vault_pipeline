@@ -59,7 +59,7 @@ pipeline.
 ```bash
 make env-init          # .env from .env.example; put VAULT_LICENSE in it
 make license && make gen-certs
-make lab               # every phase, then the gates (about 10 minutes the first time)
+make lab               # every phase, then the gates (pulls the images and the models the first time)
 make e2e-install       # Playwright, once
 make rehearsal && make test-ui
 ```
@@ -90,7 +90,9 @@ Keycloak 13802. Postgres, Ollama, LDAP and the workloads publish nothing.
 
 ## Numbers (measured 2026-11-11, this Mac)
 
-- `make up` from stopped: 105 s. `make rehearsal`: 22 checks in 29 to 35 s.
+- `make lab` from nothing (after `make clean-slate`, images and models
+  present): 208 s, every gate green. `make up` from stopped: 105 s.
+  `make rehearsal`: 22 checks in 17 to 35 s.
 - Ollama 0.13.5 on the VM's CPU: an embedding of 1 KiB in 100 to 120 ms
   warm; `qwen2.5:1.5b` answers three passages at 11 to 28 tokens per second,
   9 to 22 s per answer.

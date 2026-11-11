@@ -32,9 +32,6 @@ path "auth/approle/role/vpip-librarian/secret-id-accessor/*" { capabilities = ["
 path "auth/approle/role/vpip-console/role-id" { capabilities = ["read"] }
 path "auth/approle/role/vpip-console/secret-id" { capabilities = ["update", "list"] }
 path "auth/approle/role/vpip-console/secret-id-accessor/*" { capabilities = ["update"] }
-path "auth/approle/role/vpip-intruder/role-id" { capabilities = ["read"] }
-path "auth/approle/role/vpip-intruder/secret-id" { capabilities = ["update", "list"] }
-path "auth/approle/role/vpip-intruder/secret-id-accessor/*" { capabilities = ["update"] }
 path "sys/wrapping/lookup" { capabilities = ["update"] }
 
 # ── Cluster operations ───────────────────────────────────────────────────────

@@ -35,10 +35,20 @@ function schedule(ttl) {
     }
   }, Math.max(10, Math.floor((ttl * 2) / 3)) * 1000).unref();
 }
+// A revoked or expired credential: take a new one from Vault and retry once.
+const DEAD_CREDENTIAL = /password authentication failed|terminating connection/;
 async function q(sql, params) {
   try { return await pool.query(sql, params); } catch (e) {
-    if (/password authentication failed|terminating connection/.test(e.message)) { await connect(); return pool.query(sql, params); }
-    throw e;
+    if (!DEAD_CREDENTIAL.test(e.message)) throw e;
+    await connect();
+    return pool.query(sql, params);
+  }
+}
+async function client() {
+  try { return await pool.connect(); } catch (e) {
+    if (!DEAD_CREDENTIAL.test(e.message)) throw e;
+    await connect();
+    return pool.connect();
   }
 }
 // A custody row that cannot be written fails the operation: "every hand on
@@ -77,7 +87,7 @@ serve({
         if (!header?.doc_id || !done?.done || done.frames !== frames.length || !frames.length) throw new HttpError(400, 'bad_stream', 'header, frames, done');
         if (!w.cfg.collections.some((c) => c.name === header.collection && c.documents.includes(header.doc_id))) throw new HttpError(400, 'unknown_document', header.doc_id);
         frames.forEach((f, i) => { if (f.seq !== i || f.last !== (i === frames.length - 1)) throw new HttpError(400, 'bad_stream', `frame ${i} out of order`); });
-        const c = await pool.connect();
+        const c = await client();
         try {
           await c.query('BEGIN');
           const prev = await c.query('DELETE FROM documents WHERE doc_id = $1 RETURNING key_version', [header.doc_id]);
