@@ -462,3 +462,15 @@ backend-design audit (0 new), security discipline (0): 3 to-dos, all fixed.
 **Validation (2026-11-11):** unit tests 27/27 (gitleaks clean on the
 fixtures); `make verify` all green (rehearsal 22/22 in 14 s); `make test-ui`
 10/10.
+
+## Prompt 12: Clean, round 4 (2026-11-11)
+
+Reviews on commit "Clean round 3": ponytail audit (1), ponytail review (0),
+backend-design audit (0), security discipline (0).
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 40 | `make doctor` read the keeper's `db_user`, which stays set when the database refuses the credential, so it reported ok while the keeper could not reach Postgres | doctor reads the health check's `db` (a real `SELECT 1`) |
+
+**Validation (2026-11-11):** `make doctor` nothing to fix (the keeper check
+now from `db`); shellcheck clean.

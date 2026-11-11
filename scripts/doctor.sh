@@ -37,8 +37,9 @@ unset VAULT_TOKEN
 
 echo "Data"
 if podman exec vpip-ollama ollama list 2>/dev/null | grep -q "$(vpip_conf VPIP_CHAT_MODEL)"; then fine "models present"; else fix "a model is missing" "make models"; fi
-db=$(podman exec vpip-worker_keeper node -e "fetch('https://localhost:8443/healthz').then(r=>r.json()).then(j=>console.log(j.db_user||''))" 2>/dev/null || true)
-[ -n "$db" ] && fine "the keeper holds a database credential from Vault" || fix "the keeper has no database credential" "make pipeline-up"
+# The keeper's own check: SELECT 1 with Vault's current credential.
+db=$(podman exec vpip-worker_keeper node -e "fetch('https://localhost:8443/healthz').then(r=>r.json()).then(j=>console.log(j.db===true?'yes':'no'))" 2>/dev/null || true)
+[ "$db" = yes ] && fine "the keeper reaches Postgres with its credential from Vault" || fix "the keeper cannot reach Postgres with its credential" "make pipeline-up"
 
 echo
 [ "$problems" -eq 0 ] && info "doctor: nothing to fix" || die "doctor: $problems thing(s) to fix"
