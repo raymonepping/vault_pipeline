@@ -1,0 +1,5 @@
+# vpip-wl-scribe: reads and seals. New data keys, never the opening of one.
+path "spiffe/role/scribe/mintjwt" { capabilities = ["update"] }
+%{ for c in collections ~}
+path "transit/datakeys/plaintext/${c}" { capabilities = ["update"] }
+%{ endfor ~}

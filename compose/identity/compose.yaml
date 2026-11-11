@@ -1,0 +1,130 @@
+# compose/identity/compose.yaml: the people (D13).
+#
+# OpenLDAP (the directory) federated read-only into Keycloak (OIDC for the
+# console, and the ID token Vault's jwt/ auth accepts for a person's one
+# question). Topology and scripts from vault_balancing (prompt 12).
+#
+#   directory  dc=pipeline,dc=lab
+#              ou=people   vera (viewer), oscar (operator), ada (admin)
+#              ou=groups   pipeline-staff, pipeline-board, pipeline-operators
+#              ou=system   keycloak-bind (read only)
+#   realm      pipeline, `groups` claim
+#   clients    pipeline-console (the API's BFF, code + PKCE), pipeline-e2e (lab only)
+#
+# Secrets: .secrets/identity (scripts/identity-secrets.sh), mounted read-only.
+# The two one-shots run through scripts/identity-up.sh and are removed after
+# a successful start.
+
+services:
+  openldap:
+    image: ${OPENLDAP_IMAGE}
+    container_name: vpip-openldap
+    hostname: openldap
+    environment:
+      LDAP_ORGANISATION: "Vault Pipeline Lab"
+      LDAP_DOMAIN: "pipeline.lab"
+      LDAP_BASE_DN: "dc=pipeline,dc=lab"
+      LDAP_ADMIN_PASSWORD_FILE: "/run/secrets/ldap-admin-password"
+      LDAP_TLS: "false"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE, CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID, KILL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d
+      - ../../.secrets/identity:/run/secrets:ro
+    networks:
+      default:
+        aliases: [openldap]
+    restart: unless-stopped
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -D cn=admin,dc=pipeline,dc=lab -w \"$$(cat /run/secrets/ldap-admin-password)\" -b dc=pipeline,dc=lab -s base >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  ldap-bootstrap:
+    image: ${OPENLDAP_IMAGE}
+    container_name: vpip-ldap_bootstrap
+    profiles: ["init"]
+    environment:
+      LDAP_BASE_DN: "dc=pipeline,dc=lab"
+      LDAP_HOST: "openldap"
+    entrypoint: ["/bootstrap/setup_ldap.sh"]
+    volumes:
+      - ./ldap:/bootstrap:ro
+      - ../../.secrets/identity:/run/secrets:ro
+    networks: [default]
+    depends_on:
+      openldap:
+        condition: service_healthy
+
+  keycloak:
+    image: ${KEYCLOAK_IMAGE}
+    container_name: vpip-keycloak
+    hostname: keycloak
+    entrypoint: ["/bin/sh", "/bootstrap/entrypoint.sh"]
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KC_HTTP_ENABLED: "true"
+      # Browsers and host scripts use the published port; the API uses
+      # keycloak:8080 and gets back-channel URLs for it.
+      KC_HOSTNAME: "http://localhost:${VPIP_PORT_KEYCLOAK}"
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HEALTH_ENABLED: "true"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    ports: ["127.0.0.1:${VPIP_PORT_KEYCLOAK}:8080"]
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./keycloak/entrypoint.sh:/bootstrap/entrypoint.sh:ro
+      - ../../.secrets/identity:/run/secrets:ro
+    mem_limit: 1g
+    networks:
+      default:
+        aliases: [keycloak]
+    depends_on:
+      openldap:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /realms/master/.well-known/openid-configuration HTTP/1.1\\r\\nhost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  keycloak-bootstrap:
+    image: ${KEYCLOAK_IMAGE}
+    container_name: vpip-keycloak_bootstrap
+    profiles: ["init"]
+    entrypoint: ["/bin/bash", "/bootstrap/setup_keycloak.sh"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KC_INTERNAL_URL: "http://keycloak:8080"
+      VPIP_CONSOLE_URL: "https://localhost:${VPIP_PORT_WEB}"
+    volumes:
+      - ./keycloak:/bootstrap:ro
+      - ../../.secrets/identity:/run/secrets:ro
+    networks: [default]
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+networks:
+  default:
+    name: vpip-internal
+    external: true
+
+volumes:
+  ldap-data:
+    labels: { io.vpip.data: "true" }
+  ldap-config:
+    labels: { io.vpip.data: "true" }
+  keycloak-data:
+    labels: { io.vpip.data: "true" }

@@ -1,0 +1,82 @@
+# Phase 13 (ansible deliver): secret zero (D9). For each workload, its role id
+# and a fresh single-use secret id, response-wrapped for 300 s, written in
+# place into .secrets/workloads/<name>/ (0600, mounted read-only). The
+# workload unwraps it once at start. A wrap that someone else opened, or a
+# login tried from the wrong address, burns it (probe P6): the workload then
+# refuses to start and says so. Changes every run by design
+# (scripts/idempotency-allow.txt). The wrap accessor, not the token, goes to
+# .build/deliver.json for the custody log.
+- name: Secret zero
+  hosts: localhost
+  gather_facts: false
+  vars:
+    deliver_token: "{{ lookup('ansible.builtin.file', vpip_tokens_dir + '/ansible-platform') }}"
+    deliver_all: "{{ (lookup('ansible.builtin.file', vpip_root + '/config/pipeline.json') | from_json).workloads | map(attribute='name') | list }}"
+    # make pipeline-up delivers to the pipeline only, make app-up to the console.
+    deliver_names: "{{ (deliver_only | default('')) | split(',') | select | list or deliver_all }}"
+    deliver_dir: "{{ vpip_root }}/.secrets/workloads"
+  tasks:
+    - name: A directory per workload (0700)
+      ansible.builtin.file:
+        path: "{{ deliver_dir }}/{{ item }}"
+        state: directory
+        mode: "0700"
+      loop: "{{ [''] + deliver_names }}"
+
+    - name: Role ids
+      ansible.builtin.uri:
+        url: "{{ vpip_cluster_addr }}/v1/auth/approle/role/vpip-{{ item }}/role-id"
+        ca_path: "{{ vpip_ca }}"
+        headers: { X-Vault-Token: "{{ deliver_token }}" }
+      check_mode: false
+      no_log: true
+      loop: "{{ deliver_names }}"
+      register: deliver_role_ids
+
+    - name: Write the role ids in place (the bind mount keeps its inode)
+      ansible.builtin.copy:
+        dest: "{{ deliver_dir }}/{{ item.item }}/role_id"
+        content: "{{ item.json.data.role_id }}"
+        mode: "0600"
+      no_log: true
+      loop: "{{ deliver_role_ids.results }}"
+
+    - name: A wrapped single-use secret id per workload
+      ansible.builtin.uri:
+        url: "{{ vpip_cluster_addr }}/v1/auth/approle/role/vpip-{{ item }}/secret-id"
+        method: POST
+        ca_path: "{{ vpip_ca }}"
+        headers:
+          X-Vault-Token: "{{ deliver_token }}"
+          X-Vault-Wrap-TTL: "{{ vpip_wrap_ttl }}"
+        body_format: json
+        body: { metadata: '{"delivered_by":"ansible deliver"}' }
+      no_log: true
+      loop: "{{ deliver_names }}"
+      register: deliver_wraps
+      changed_when: true
+
+    - name: Write the wrapped tokens in place
+      ansible.builtin.shell: "cat > {{ (deliver_dir + '/' + item.item + '/wrapped') | quote }}"
+      args: { stdin: "{{ item.json.wrap_info.token }}", stdin_add_newline: false }
+      no_log: true
+      loop: "{{ deliver_wraps.results }}"
+      changed_when: true
+
+    - name: Tighten the wrapped files
+      ansible.builtin.file:
+        path: "{{ deliver_dir }}/{{ item }}/wrapped"
+        mode: "0600"
+      loop: "{{ deliver_names }}"
+
+    - name: Record what was delivered (accessors and times, never a token)
+      ansible.builtin.copy:
+        dest: "{{ vpip_root }}/.build/deliver.json"
+        mode: "0644"
+        content: >-
+          {{ (lookup('ansible.builtin.file', vpip_root + '/.build/deliver.json', errors='ignore') | default('{}', true) | from_json)
+             | combine(dict(deliver_wraps.results | map(attribute='item')
+               | zip(deliver_wraps.results | map(attribute='json') | map(attribute='wrap_info')
+                 | map('ansible.builtin.dict2items')
+                 | map('selectattr', 'key', 'in', ['accessor', 'wrapped_accessor', 'creation_time', 'ttl'])
+                 | map('ansible.builtin.items2dict')))) | to_nice_json }}

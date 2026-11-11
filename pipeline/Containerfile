@@ -1,0 +1,13 @@
+# pipeline/Containerfile: one image for the scribe, keeper and librarian.
+# WORKLOAD selects the entry. Built with --format docker (HEALTHCHECK).
+FROM docker.io/library/node:24-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts && npm cache clean --force
+COPY lib ./lib
+COPY bin ./bin
+USER node
+ENV NODE_ENV=production
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 \
+  CMD node -e "fetch('https://localhost:'+(process.env.PORT||8443)+'/healthz').then(r=>r.json()).then(j=>process.exit(j.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["sh", "-c", "exec node bin/${WORKLOAD}.js"]

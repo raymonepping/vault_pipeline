@@ -1,0 +1,66 @@
+# compose/identity/ldap/bootstrap.ldif: the lab's directory (D13). Fictional
+# people, no passwords (setup_ldap.sh sets them from .secrets/identity).
+#
+#   vera   staff                        reads the handbook
+#   oscar  staff + operators            presses the act buttons
+#   ada    staff + operators + board    reads the board minutes too; the presenter
+
+dn: ou=people,dc=pipeline,dc=lab
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=pipeline,dc=lab
+objectClass: organizationalUnit
+ou: groups
+
+dn: ou=system,dc=pipeline,dc=lab
+objectClass: organizationalUnit
+ou: system
+
+dn: uid=vera,ou=people,dc=pipeline,dc=lab
+objectClass: inetOrgPerson
+uid: vera
+cn: Vera Viewer
+sn: Viewer
+givenName: Vera
+mail: vera@pipeline.lab
+
+dn: uid=oscar,ou=people,dc=pipeline,dc=lab
+objectClass: inetOrgPerson
+uid: oscar
+cn: Oscar Operator
+sn: Operator
+givenName: Oscar
+mail: oscar@pipeline.lab
+
+dn: uid=ada,ou=people,dc=pipeline,dc=lab
+objectClass: inetOrgPerson
+uid: ada
+cn: Ada Admin
+sn: Admin
+givenName: Ada
+mail: ada@pipeline.lab
+
+dn: cn=pipeline-staff,ou=groups,dc=pipeline,dc=lab
+objectClass: groupOfNames
+cn: pipeline-staff
+member: uid=vera,ou=people,dc=pipeline,dc=lab
+member: uid=oscar,ou=people,dc=pipeline,dc=lab
+member: uid=ada,ou=people,dc=pipeline,dc=lab
+
+dn: cn=pipeline-operators,ou=groups,dc=pipeline,dc=lab
+objectClass: groupOfNames
+cn: pipeline-operators
+member: uid=oscar,ou=people,dc=pipeline,dc=lab
+member: uid=ada,ou=people,dc=pipeline,dc=lab
+
+dn: cn=pipeline-board,ou=groups,dc=pipeline,dc=lab
+objectClass: groupOfNames
+cn: pipeline-board
+member: uid=ada,ou=people,dc=pipeline,dc=lab
+
+dn: cn=keycloak-bind,ou=system,dc=pipeline,dc=lab
+objectClass: inetOrgPerson
+cn: keycloak-bind
+sn: system
+description: Keycloak federation: read only

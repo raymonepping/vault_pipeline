@@ -1,0 +1,63 @@
+# compose/pipeline/compose.yaml: the workloads (D9, D10). One image, one
+# identity each. Static addresses: each workload's Vault token is bound to its
+# /32. No restart policy on purpose: secret zero is single use, so a restart
+# cannot log in again; make pipeline-up delivers a fresh one and recreates.
+# Nothing is published on the host.
+
+x-worker: &worker
+  image: ${VPIP_IMAGE_PREFIX}/worker:${VPIP_IMAGE_TAG}
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: "no"
+  mem_limit: 256m
+
+x-env: &env
+  NODE_EXTRA_CA_CERTS: /tls/ca-chain.pem
+  PIPELINE_CONFIG: /config/pipeline.json
+  EMBED_MODEL: ${VPIP_EMBED_MODEL}
+  CHAT_MODEL: ${VPIP_CHAT_MODEL}
+
+services:
+  scribe:
+    <<: *worker
+    container_name: vpip-worker_scribe
+    hostname: scribe
+    environment: { <<: *env, WORKLOAD: scribe }
+    networks:
+      default: { ipv4_address: "${VPIP_IP_SCRIBE}" }
+    volumes:
+      - ../../config/pipeline.json:/config/pipeline.json:ro
+      - ../../vault-tls:/tls:ro
+      - ../../corpus:/corpus:ro
+      - ../../.secrets/workloads/scribe:/run/secret-zero:ro
+
+  keeper:
+    <<: *worker
+    container_name: vpip-worker_keeper
+    hostname: keeper
+    environment: { <<: *env, WORKLOAD: keeper }
+    networks:
+      default: { ipv4_address: "${VPIP_IP_KEEPER}" }
+    volumes:
+      - ../../config/pipeline.json:/config/pipeline.json:ro
+      - ../../vault-tls:/tls:ro
+      - ../../.secrets/workloads/keeper:/run/secret-zero:ro
+
+  librarian:
+    <<: *worker
+    container_name: vpip-worker_librarian
+    hostname: librarian
+    environment: { <<: *env, WORKLOAD: librarian }
+    networks:
+      default: { ipv4_address: "${VPIP_IP_LIBRARIAN}" }
+    volumes:
+      - ../../config/pipeline.json:/config/pipeline.json:ro
+      - ../../vault-tls:/tls:ro
+      - ../../.secrets/workloads/librarian:/run/secret-zero:ro
+
+networks:
+  default:
+    name: vpip-internal
+    external: true

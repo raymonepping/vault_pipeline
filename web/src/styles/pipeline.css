@@ -1,0 +1,99 @@
+/* pipeline.css: Chain of Custody on top of Vault daylight glass. The notice,
+   hero and Layers rules come from vault_balancing; the rest is this story. */
+/* ── Notices ───────────────────────────────────────────────────────────── */
+.inline-notice.ok { background: var(--vg-healthy-bg); color: var(--vg-healthy); }
+.inline-notice.warn {
+  background: var(--vg-pending-bg); color: var(--vg-pending);
+  border-color: color-mix(in srgb, var(--vg-hue-amber) 28%, transparent);
+}
+.inline-notice.info {
+  background: color-mix(in srgb, var(--vg-hue-blue) 9%, transparent); color: var(--vg-action-primary);
+  border-color: color-mix(in srgb, var(--vg-hue-blue) 24%, transparent);
+}
+
+.room-hero { padding: 26px 30px 28px; position: relative; }
+.room-hero__kicker { margin: 0 0 2px; font-size: 15px; font-weight: 600; color: var(--vg-text-muted); }
+.room-hero__title { font-size: clamp(28px, 2.6vw, 40px); }
+.hero-action { position: absolute; top: 22px; right: 26px; }
+.layers-summary { margin: 14px 0 0; font-size: 14px; color: var(--vg-healthy); }
+
+/* ── Role pills ────────────────────────────────────────────────────────── */
+/* The grey (indigo) pill's text on its 15% tint measured 4.23:1 over the
+   glass at phone width with a drill open (axe). 20% ink keeps the hue and
+   gives 5.4:1 there, 4.9:1 on a darker background. */
+.vg-pill--manual { color: color-mix(in srgb, var(--vg-indigo) 80%, var(--vg-ink)); }
+.gates { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.gate { gap: 6px; }
+.gate__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.gate .mono { font-size: 12px; }
+.phases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.phase {
+  display: grid; grid-template-columns: 28px 96px 150px minmax(0, 1fr) 56px auto; gap: 12px; align-items: center;
+  padding: 9px 14px; border-radius: 10px; background: var(--vg-well); border: 1px solid var(--vg-border-subtle); font-size: 13px;
+}
+.phase__n { color: var(--vg-text-muted); font-variant-numeric: tabular-nums; }
+.phase__secs { font-variant-numeric: tabular-nums; font-size: 12px; text-align: right; color: var(--vg-text-secondary); }
+.tool { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; justify-self: start; border: 1px solid; }
+.tool--terraform { color: var(--vg-indigo); border-color: color-mix(in srgb, var(--vg-hue-indigo) 35%, transparent); background: color-mix(in srgb, var(--vg-hue-indigo) 9%, transparent); }
+.tool--ansible { color: var(--vg-healthy); border-color: color-mix(in srgb, var(--vg-hue-green) 35%, transparent); background: var(--vg-healthy-bg); }
+.tool--make { color: var(--vg-text-primary); border-color: var(--vg-border-strong); background: var(--vg-bg-neutral); }
+
+
+/* ── Chain of Custody ─────────────────────────────────────────────────── */
+.lede { margin: 10px 0 0; max-width: 860px; font-size: 17px; line-height: 1.5; color: var(--vg-text-secondary); }
+.hero-lede { max-width: 860px; }
+.page-stack { display: flex; flex-direction: column; gap: 18px; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.muted { color: var(--vg-text-dim); font-size: 13.5px; }
+
+/* Workload cards on The Line: who may do what, as Vault answered. */
+.workloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.workload { display: flex; flex-direction: column; gap: 10px; }
+.workload__name { font-size: 20px; font-weight: 750; letter-spacing: -0.02em; margin: 0; }
+.powers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.power { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; align-items: baseline; font-size: 13px; }
+.power .mono { overflow-wrap: anywhere; font-size: 12px; }
+.power__yes { color: var(--vg-healthy); font-weight: 650; }
+.power__no { color: var(--vg-critical); font-weight: 650; }
+.guests { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Rows that fill as events stream in (Into the Pipe, The Lost Backup). */
+.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.event { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 12px; align-items: baseline;
+  padding: 10px 12px; border: 1px solid var(--vg-border-subtle); border-radius: var(--vg-radius); background: var(--vg-well); }
+.event__what { font-weight: 650; color: var(--vg-text-primary); }
+.event__detail { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; color: var(--vg-text-secondary); }
+.event--bad { background: color-mix(in srgb, var(--vg-hue-red) 6%, var(--vg-well)); border-color: color-mix(in srgb, var(--vg-hue-red) 30%, transparent); }
+.event--good { background: color-mix(in srgb, var(--vg-hue-green) 6%, var(--vg-well)); border-color: color-mix(in srgb, var(--vg-hue-green) 30%, transparent); }
+
+/* The librarian. */
+.ask { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.ask .form-field { flex: 1 1 380px; }
+.ask input { width: 100%; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 8px; }
+.answer { font-size: 19px; line-height: 1.55; color: var(--vg-text-primary); white-space: pre-wrap; min-height: 2.4em; margin: 0; }
+.refusal { font-size: 14px; }
+.refusal .mono { font-size: 12.5px; }
+
+/* The badge check: the doors and their guests. */
+.doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.door { display: flex; flex-direction: column; gap: 8px; }
+.checks { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--vg-text-secondary); }
+.test-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.test-list li { display: flex; gap: 8px; align-items: baseline; font-size: 14px; }
+
+/* Custody timeline. */
+.custody { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.custody li { display: grid; grid-template-columns: 82px 110px 120px minmax(0, 1fr); gap: 10px; align-items: baseline; font-size: 14px; }
+.custody .mono { font-size: 12px; overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  .room-hero { padding: 20px; }
+  .hero-action { position: static; margin-top: 12px; }
+  .gates { grid-template-columns: 1fr; }
+  .phase { grid-template-columns: 24px 1fr auto; }
+  .phase .mono, .phase__evidence, .phase__secs { grid-column: 2 / -1; }
+  .event { grid-template-columns: 1fr; gap: 4px; }
+  .custody li { grid-template-columns: 70px 1fr; }
+  .custody li > :nth-child(n + 3) { grid-column: 1 / -1; }
+}

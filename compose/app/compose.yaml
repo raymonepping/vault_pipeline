@@ -1,0 +1,62 @@
+# compose/app/compose.yaml: the console. Its backend is a workload like the
+# others (one image, WORKLOAD=console), with its own secret zero and a static
+# address its Vault token is bound to; a person's token is bound to it too
+# (D13). The web front (nginx, the React console) proxies /api and /auth to it.
+
+services:
+  console:
+    image: ${VPIP_IMAGE_PREFIX}/worker:${VPIP_IMAGE_TAG}
+    container_name: vpip-console
+    hostname: console
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+    mem_limit: 256m
+    environment:
+      WORKLOAD: console
+      PORT: "3000"
+      NODE_EXTRA_CA_CERTS: /tls/ca-chain.pem
+      PIPELINE_CONFIG: /config/pipeline.json
+      KEYCLOAK_PUBLIC_URL: http://localhost:${VPIP_PORT_KEYCLOAK}
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      CONSOLE_URL: https://localhost:${VPIP_PORT_WEB}
+      CONSOLE_CLIENT_SECRET_FILE: /run/secrets/console-client-secret
+    ports: ["127.0.0.1:${VPIP_PORT_API}:3000"]
+    networks:
+      default:
+        ipv4_address: "${VPIP_IP_CONSOLE}"
+        aliases: [api]
+    volumes:
+      - ../../config/pipeline.json:/config/pipeline.json:ro
+      - ../../vault-tls:/tls:ro
+      - ../../.build:/build:ro
+      - ../../.secrets/workloads/console:/run/secret-zero:ro
+      # Only this identity file, never .secrets/identity itself.
+      - ../../.secrets/identity/console-client-secret:/run/secrets/console-client-secret:ro
+
+  web:
+    image: ${VPIP_IMAGE_PREFIX}/web:${VPIP_IMAGE_TAG}
+    container_name: vpip-web
+    hostname: web
+    user: "101:101"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    environment:
+      NGINX_ENTRYPOINT_LOCAL_RESOLVERS: "1"
+      NGINX_ENVSUBST_OUTPUT_DIR: /tmp
+    ports: ["127.0.0.1:${VPIP_PORT_WEB}:8443"]
+    volumes:
+      - ../../vault-tls:/etc/nginx/tls:ro
+    tmpfs: [/tmp]
+    depends_on: [console]
+    restart: unless-stopped
+    mem_limit: 128m
+    networks: [default]
+
+networks:
+  default:
+    name: vpip-internal
+    external: true

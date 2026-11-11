@@ -1,0 +1,3 @@
+# Ansible phases allowed to report changes on a converged lab, one per line:
+# <phase> <reason>. Expected empty: every phase must be changed=0.
+deliver secret zero is single use by design (D9): every run hands each workload a fresh wrapped secret id

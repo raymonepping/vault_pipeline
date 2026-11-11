@@ -1,0 +1,26 @@
+# Phase 16 (ansible validate): the running lab, end to end, read-only. Every
+# workload answers its health check, the console's line view lists every
+# workload's powers as its own token sees them, and the workload and person
+# boundary holds (scripts/boundary-workloads.sh, which logs nobody in to
+# Vault from the host successfully: that is one of its checks).
+- name: Validate the running lab
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Each workload is running and healthy
+      ansible.builtin.command: "podman inspect {{ item }} --format '{{ '{{' }}.State.Status{{ '}}' }} {{ '{{' }}.State.Health.Status{{ '}}' }}'"
+      loop: [vpip-worker_scribe, vpip-worker_keeper, vpip-worker_librarian, vpip-console]
+      register: validate_health
+      changed_when: false
+      failed_when: validate_health.stdout != 'running healthy'
+      check_mode: false
+
+    - name: The workload and person boundary
+      ansible.builtin.command: "{{ vpip_root }}/scripts/boundary-workloads.sh"
+      register: validate_boundary
+      changed_when: false
+      check_mode: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ validate_boundary.stdout_lines | last }}"

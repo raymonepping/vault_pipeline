@@ -1,0 +1,8 @@
+# vpip-wl-keeper: stores and finds sealed frames. A database credential and
+# rewrap (re-lock an encrypted data key without opening it, probe P5).
+path "spiffe/role/keeper/mintjwt" { capabilities = ["update"] }
+path "database/creds/keeper" { capabilities = ["read"] }
+path "sys/leases/renew" { capabilities = ["update"] }
+%{ for c in collections ~}
+path "transit/rewrap/${c}" { capabilities = ["update"] }
+%{ endfor ~}

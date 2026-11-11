@@ -1,0 +1,53 @@
+# Phase 11 (ansible schema): the pipeline's tables (D12), applied with
+# Postgres's bootstrap password while it still works, then Vault rotates that
+# password away (database/rotate-root): afterwards only Vault knows the
+# superuser's password, and the keeper's dynamic credential is the only way
+# in (probe P7). A second run finds the bootstrap password dead and changes
+# nothing.
+- name: Schema, then rotate the root password
+  hosts: localhost
+  gather_facts: false
+  vars:
+    schema_token: "{{ lookup('ansible.builtin.file', vpip_tokens_dir + '/ansible-platform') }}"
+    schema_psql: >-
+      podman exec -i vpip-postgres sh -c
+      'PGPASSWORD=$(cat /run/secrets/pg-bootstrap) psql -h postgres -U postgres -d pipeline -v ON_ERROR_STOP=1 -qtA'
+  tasks:
+    - name: Does the bootstrap password still open Postgres?
+      ansible.builtin.command: "{{ schema_psql }}"
+      args: { stdin: "select 1" }
+      register: schema_bootstrap
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Apply the schema (idempotent statements)
+      ansible.builtin.command: "{{ schema_psql }}"
+      args: { stdin: "{{ lookup('ansible.builtin.file', vpip_root + '/ansible/roles/schema/files/schema.sql') }}" }
+      when: schema_bootstrap.rc == 0
+      changed_when: true
+
+    - name: Vault rotates the root password (the bootstrap one dies)
+      ansible.builtin.uri:
+        url: "{{ vpip_cluster_addr }}/v1/database/rotate-root/pipeline"
+        method: POST
+        ca_path: "{{ vpip_ca }}"
+        headers: { X-Vault-Token: "{{ schema_token }}" }
+        status_code: [200, 204]
+      no_log: true
+      when: schema_bootstrap.rc == 0
+      changed_when: true
+
+    - name: The bootstrap password is dead
+      ansible.builtin.command: "{{ schema_psql }}"
+      args: { stdin: "select 1" }
+      register: schema_after
+      changed_when: false
+      failed_when: schema_after.rc == 0 or 'password authentication failed' not in schema_after.stderr
+      check_mode: false
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'schema applied, root password rotated by Vault' if schema_bootstrap.rc == 0
+          else 'schema in place, the root password was rotated earlier' }}

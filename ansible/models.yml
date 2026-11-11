@@ -1,0 +1,34 @@
+# Phase 12 (ansible models): the embedding and chat models in Ollama's volume
+# (D16), checked by the ID `ollama list` prints (the digest's first 12 hex).
+# Ollama publishes nothing on the host, so this runs `ollama` inside its
+# container. Present and matching: changed=0.
+- name: The models
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: What Ollama has
+      ansible.builtin.command: podman exec vpip-ollama ollama list
+      register: models_list
+      changed_when: false
+      check_mode: false
+
+    - name: Pull a missing model
+      ansible.builtin.command: "podman exec vpip-ollama ollama pull {{ item.name }}"
+      loop: "{{ vpip_models }}"
+      loop_control: { label: "{{ item.name }}" }
+      when: item.name not in models_list.stdout
+      changed_when: true
+
+    - name: Read the list again
+      ansible.builtin.command: podman exec vpip-ollama ollama list
+      register: models_after
+      changed_when: false
+      check_mode: false
+
+    - name: Each model has the expected ID
+      ansible.builtin.assert:
+        that: models_after.stdout_lines | select('search', '^' ~ (item.name | regex_escape) ~ '\s+' ~ item.id) | list | length == 1
+        fail_msg: "{{ item.name }} is not {{ item.id }}: the tag moved; check it, then update VPIP_*_MODEL_ID in config/defaults.conf"
+        quiet: true
+      loop: "{{ vpip_models }}"
+      loop_control: { label: "{{ item.name }} {{ item.id }}" }

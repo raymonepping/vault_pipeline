@@ -1,0 +1,8 @@
+# vpip-wl-console: its own badge, and the operators' rotate button: turn a
+# collection key and raise its minimum version. It can never open a key.
+path "spiffe/role/console/mintjwt" { capabilities = ["update"] }
+%{ for c in collections ~}
+path "transit/keys/${c}" { capabilities = ["read"] }
+path "transit/keys/${c}/rotate" { capabilities = ["update"] }
+path "transit/keys/${c}/config" { capabilities = ["update"] }
+%{ endfor ~}

@@ -1,0 +1,66 @@
+# compose/data/compose.yaml: the data plane (D12, D16). Nothing is published
+# on the host: the keeper reaches Postgres, the scribe and librarian reach
+# Ollama, all inside vpip-internal.
+#
+# Postgres starts with scram on local and loopback too: the image trusts both
+# by default, and then any password works there (probe P7). Its bootstrap
+# password is used once by Ansible (phase schema), then Vault rotates it.
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: vpip-postgres
+    hostname: postgres
+    environment:
+      POSTGRES_DB: pipeline
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg-bootstrap
+      POSTGRES_INITDB_ARGS: "--auth-local=scram-sha-256 --auth-host=scram-sha-256"
+    volumes:
+      - pg-data:/var/lib/postgresql
+      - ../../.secrets/data/pg-bootstrap:/run/secrets/pg-bootstrap:ro
+    networks:
+      default:
+        aliases: [postgres]
+    restart: unless-stopped
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h postgres -U postgres -d pipeline"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  ollama:
+    image: ${OLLAMA_IMAGE}
+    container_name: vpip-ollama
+    hostname: ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NUM_PARALLEL: "1"
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      default:
+        aliases: [ollama]
+    restart: unless-stopped
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+networks:
+  default:
+    name: vpip-internal
+    external: true
+
+volumes:
+  pg-data:
+    labels: { io.vpip.data: "true" }
+  # Created by scripts/data-up.sh (prompt 03's probe already filled it).
+  ollama-models:
+    name: vpip-ollama_models
+    external: true

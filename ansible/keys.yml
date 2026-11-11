@@ -1,0 +1,44 @@
+# Phase 9 (ansible keys): one Transit key encryption key per collection (D8:
+# runtime state, because Act IV rotates it and raises its minimum version).
+# Never exportable, never deletable by accident. Idempotent: an existing key
+# is reported, not touched.
+- name: The collection keys
+  hosts: localhost
+  gather_facts: false
+  vars:
+    keys_token: "{{ lookup('ansible.builtin.file', vpip_tokens_dir + '/ansible-platform') }}"
+    keys_collections: "{{ (lookup('ansible.builtin.file', vpip_root + '/config/pipeline.json') | from_json).collections | map(attribute='key') | list }}"
+  tasks:
+    - name: Read each key
+      ansible.builtin.uri:
+        url: "{{ vpip_cluster_addr }}/v1/transit/keys/{{ item }}"
+        ca_path: "{{ vpip_ca }}"
+        headers: { X-Vault-Token: "{{ keys_token }}" }
+        status_code: [200, 404]
+      check_mode: false
+      no_log: true
+      loop: "{{ keys_collections }}"
+      register: keys_read
+
+    - name: Create the missing keys (aes256-gcm96, not exportable)
+      ansible.builtin.uri:
+        url: "{{ vpip_cluster_addr }}/v1/transit/keys/{{ item.item }}"
+        method: POST
+        ca_path: "{{ vpip_ca }}"
+        headers: { X-Vault-Token: "{{ keys_token }}" }
+        body_format: json
+        body: { type: aes256-gcm96, exportable: false, allow_plaintext_backup: false }
+        status_code: [200, 204]
+      no_log: true
+      loop: "{{ keys_read.results }}"
+      loop_control: { label: "{{ item.item }}" }
+      when: item.status == 404
+      changed_when: true
+
+    - name: Report each key's versions
+      ansible.builtin.debug:
+        msg: >-
+          {{ item.item }}: {{ 'created now' if item.status == 404 else
+          'v' ~ item.json.data.latest_version ~ ', decrypts from v' ~ item.json.data.min_decryption_version }}
+      loop: "{{ keys_read.results }}"
+      loop_control: { label: "{{ item.item }}" }
