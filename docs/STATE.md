@@ -474,3 +474,19 @@ backend-design audit (0), security discipline (0).
 
 **Validation (2026-11-11):** `make doctor` nothing to fix (the keeper check
 now from `db`); shellcheck clean.
+
+## Prompt 12: Clean, round 5: zero to-dos (2026-11-11)
+
+Reviews on commit "Clean round 4": ponytail audit, ponytail review,
+backend-design audit and security discipline found nothing to fix. Across
+the five rounds: 40 findings, all fixed (27, 9, 3, 1, 0).
+
+Once, right after the round 4 edit, `make doctor` reported one thing to fix
+without naming it in the captured tail; five runs after that were clean,
+so there is no case to fix. If it shows again, the line above "doctor: N
+thing(s) to fix" names the check.
+
+**Final validation (2026-11-11):** `make verify` all green (lint, unit tests,
+32 + 20 boundary checks, both plans empty, rehearsal 22/22), `make test-ui`
+10/10, `make doctor` nothing to fix; the lab was rebuilt from nothing in
+round 2 (208 s).
