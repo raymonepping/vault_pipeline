@@ -45,7 +45,7 @@ async function sealAndStore(collection, docIds, send) {
 serve({
   name: 'scribe', cfg: w.cfg, verifier: w.verifier, tls: w.tls, port: w.me.port,
   routes: [
-    { method: 'GET', path: '/healthz', op: null, handler: (q, res) => json(res, 200, { ok: w.vault.ready, workload: 'scribe' }) },
+    { method: 'GET', path: '/healthz', op: null, handler: (q, res) => json(res, w.vault.ready ? 200 : 503, { ok: w.vault.ready, workload: 'scribe' }) },
     {
       method: 'POST', path: '/ingest', op: 'ingest',
       async handler(req, res) {

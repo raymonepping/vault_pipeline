@@ -447,3 +447,18 @@ applied: the new cluster's bootstrap policies have no intruder paths.
 | # | Found during the rebuild | Fix |
 | --- | --- | --- |
 | 36 | `lab.sh` called `scripts/automation-digest.sh`, set aside in prompt 01, so every run recorded an empty digest without failing (`--arg "$(...)"` hides the error) | the script restored for this lab's inputs; `lab.sh` computes the digest first, so a failure stops the run. A second `make lab` recorded digest `6a9662f73954` |
+
+## Prompt 12: Clean, round 3 (2026-11-11)
+
+Reviews on commit "Clean round 2": ponytail audit (3), ponytail review (0),
+backend-design audit (0 new), security discipline (0): 3 to-dos, all fixed.
+
+| # | Finding | Fix |
+| --- | --- | --- |
+| 37 | The keeper's reconnect rule was written twice (`q()`, `client()`) and untested | `pipeline/lib/retry.js` `retryOnDeadCredential`, used by both, 3 unit tests |
+| 38 | "Healthy" outlived the Vault token (`ready` meant "a token was obtained once"), and unhealthy answered 200 | `ready` tracks the token's expiry through every renewal (unit test with a fake Vault); health answers 503 when not ok |
+| 39 | `act()` lost its indentation in the round 2 move | re-indented |
+
+**Validation (2026-11-11):** unit tests 27/27 (gitleaks clean on the
+fixtures); `make verify` all green (rehearsal 22/22 in 14 s); `make test-ui`
+10/10.

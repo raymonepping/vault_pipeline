@@ -7,6 +7,7 @@ import pg from 'pg';
 import { start } from '../lib/workload.js';
 import { serve, readJson, readNdjson, json, HttpError } from '../lib/http.js';
 import { headerDigest } from '../lib/envelope.js';
+import { retryOnDeadCredential } from '../lib/retry.js';
 
 const w = await start('keeper');
 let pool = null;
@@ -35,22 +36,9 @@ function schedule(ttl) {
     }
   }, Math.max(10, Math.floor((ttl * 2) / 3)) * 1000).unref();
 }
-// A revoked or expired credential: take a new one from Vault and retry once.
-const DEAD_CREDENTIAL = /password authentication failed|terminating connection/;
-async function q(sql, params) {
-  try { return await pool.query(sql, params); } catch (e) {
-    if (!DEAD_CREDENTIAL.test(e.message)) throw e;
-    await connect();
-    return pool.query(sql, params);
-  }
-}
-async function client() {
-  try { return await pool.connect(); } catch (e) {
-    if (!DEAD_CREDENTIAL.test(e.message)) throw e;
-    await connect();
-    return pool.connect();
-  }
-}
+// A revoked or expired credential: a new one from Vault, then once more.
+const q = (sql, params) => retryOnDeadCredential(() => pool.query(sql, params), connect);
+const client = () => retryOnDeadCredential(() => pool.connect(), connect);
 // A custody row that cannot be written fails the operation: "every hand on
 // the record" is the story's promise.
 const custody = (docId, actor, action, detail = {}) =>

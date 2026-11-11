@@ -45,7 +45,7 @@ async function openForAsker(personToken, frames) {
 serve({
   name: 'librarian', cfg: w.cfg, verifier: w.verifier, tls: w.tls, port: w.me.port,
   routes: [
-    { method: 'GET', path: '/healthz', op: null, handler: (q, res) => json(res, 200, { ok: w.vault.ready, workload: 'librarian' }) },
+    { method: 'GET', path: '/healthz', op: null, handler: (q, res) => json(res, w.vault.ready ? 200 : 503, { ok: w.vault.ready, workload: 'librarian' }) },
     {
       method: 'POST', path: '/ask', op: 'ask',
       async handler(req, res) {

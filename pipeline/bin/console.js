@@ -191,7 +191,7 @@ async function serve(req, res, rid) {
     // Closed by default: anything not on the PUBLIC list needs a signed-in person.
     const who = route === 'GET /healthz' ? null : await auth.person(req);
     if (!who && !PUBLIC.has(route)) throw fail(401, 'unauthenticated', 'sign in first');
-    if (route === 'GET /healthz') return json(res, 200, { ok: w.vault.ready, workload: 'console' });
+    if (route === 'GET /healthz') return json(res, w.vault.ready ? 200 : 503, { ok: w.vault.ready, workload: 'console' });
     if (route === 'GET /auth/login') return res.writeHead(302, { location: auth.login(url) }).end();
     if (route === 'GET /auth/callback') {
       const { sid, returnTo } = await auth.callback(url);
@@ -234,21 +234,21 @@ async function serve(req, res, rid) {
 
 // The operators' buttons, one at a time.
 async function act(route, req, res, who) {
-    if (route === 'POST /api/acts/ingest') {
-      const { collection } = await body(req);
-      if (!w.cfg.collections.some((c) => c.name === collection)) throw fail(400, 'unknown_collection', String(collection));
-      const send = stream(res);
-      send({ event: 'pressed', by: who.user });
-      try {
-        await relay(res, await w.call('scribe', 'POST', '/ingest', { body: { collection }, ms: 300_000 }));
-      } catch (e) {
-        send({ event: 'error', message: e.message });
-      }
-      return res.end();
+  if (route === 'POST /api/acts/ingest') {
+    const { collection } = await body(req);
+    if (!w.cfg.collections.some((c) => c.name === collection)) throw fail(400, 'unknown_collection', String(collection));
+    const send = stream(res);
+    send({ event: 'pressed', by: who.user });
+    try {
+      await relay(res, await w.call('scribe', 'POST', '/ingest', { body: { collection }, ms: 300_000 }));
+    } catch (e) {
+      send({ event: 'error', message: e.message });
     }
-    if (route === 'POST /api/acts/backup') return await lostBackup(res, who);
-    if (route === 'POST /api/acts/reset') return json(res, 200, await peer('keeper', 'POST', '/forget', {}));
-    throw fail(404, 'not_found', route);
+    return res.end();
+  }
+  if (route === 'POST /api/acts/backup') return await lostBackup(res, who);
+  if (route === 'POST /api/acts/reset') return json(res, 200, await peer('keeper', 'POST', '/forget', {}));
+  throw fail(404, 'not_found', route);
 }
 
 createServer({ key: readFileSync(w.tls.key), cert: readFileSync(w.tls.cert), minVersion: 'TLSv1.3' }, handle).listen(PORT, '0.0.0.0', () => w.logger('listening', { port: PORT }));

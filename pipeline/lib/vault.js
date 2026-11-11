@@ -34,6 +34,7 @@ export async function fetchWithin(url, init = {}, ms = 10_000) {
 
 export function createVault({ addrs, log = () => {} }) {
   let token = null;
+  let expiresAt = 0; // the token's end: a renewal moves it, a failed one does not
   let renewTimer = null;
 
   async function raw(method, path, { body, headers = {}, as } = {}) {
@@ -60,6 +61,7 @@ export function createVault({ addrs, log = () => {} }) {
     renewTimer = setTimeout(async () => {
       try {
         const j = await raw('POST', 'auth/token/renew-self', { body: {} });
+        expiresAt = Date.now() + j.auth.lease_duration * 1000;
         renewLoop(j.auth.lease_duration);
       } catch (e) {
         log('vault.renew_failed', { message: e.message });
@@ -73,7 +75,9 @@ export function createVault({ addrs, log = () => {} }) {
     call: (method, path, opts) => raw(method, path, opts),
     // Calls made with someone else's token (the librarian's asker, D13).
     callAs: (tok, method, path, opts = {}) => raw(method, path, { ...opts, as: tok }),
-    get ready() { return Boolean(token); },
+    // Ready while the token has time left: an hour of failed renewals (Vault
+    // down) ends it, and the health check then says so.
+    get ready() { return Boolean(token) && Date.now() < expiresAt; },
 
     // D9: unwrap once, log in, renew. The files are mounted read-only.
     async secretZero({ roleIdFile, wrappedFile }) {
@@ -90,6 +94,7 @@ export function createVault({ addrs, log = () => {} }) {
       }
       const j = await raw('POST', 'auth/approle/login', { body: { role_id: roleId, secret_id: secretId }, as: null });
       token = j.auth.client_token;
+      expiresAt = Date.now() + j.auth.lease_duration * 1000;
       renewLoop(j.auth.lease_duration);
       return { accessor: j.auth.accessor, entity_id: j.auth.entity_id, policies: j.auth.token_policies };
     },
